@@ -1,6 +1,10 @@
 # image_classification_pruning
 ## Environment Setup:
-```conda create --name [NameOfYourEnvironment] --file conda-environment.txt```
+```conda create --name Pytorch --file conda-environment.txt```
+
+## Platforms
+Ubuntu 18.04
+
 
 ## TensorBoard Commend:
 ```tensorboard --logdir [Directory]```
