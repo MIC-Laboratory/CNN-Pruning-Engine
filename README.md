@@ -1,6 +1,6 @@
 # image_classification_pruning
 ## Environment Setup:
-```conda create --name Pytorch --file conda-environment.txt```
+```conda create --name Pytorch --file conda-environment.yml```
 
 ## Platforms
 Ubuntu 18.04
