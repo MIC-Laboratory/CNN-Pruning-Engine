@@ -4,6 +4,7 @@
 
 ## Platforms
 Ubuntu 18.04
+pytorch=1.10.1=py3.9_cuda10.2_cudnn7.6.5_0
 
 
 ## TensorBoard Commend:
