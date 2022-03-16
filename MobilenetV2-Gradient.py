@@ -14,6 +14,7 @@ from torchvision.ops.misc import ConvNormActivation, SqueezeExcitation
 
 from mobilenetv2 import MobileNetV2 as models
 from mobilenetv2 import Block as block
+from mobilenetv2 import GateLayer as Gate
 
 from gradientDataSet import CIFAR10 as gradientSet
 
@@ -57,7 +58,8 @@ block_channel_pruning = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,9
 net = models(config = block_channel_origin)
 net.to(device)
 new_net = models(config = block_channel_pruning)
-net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+net.load_state_dict(torch.load("weight/acc71.96%_Mobilenet.pth"))
+# net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
 
 
 
@@ -173,11 +175,13 @@ def calculateImportant():
         for x in range(feature_map.size(0)):
             gradient[idx][x,:,:,:]*=feature_map[idx]
 
-        criteria_for_layer = gradient[idx] / (torch.linalg.norm(gradient[idx]) + 1e-8)
+        criteria_for_layer = torch.pow(gradient[idx],torch.tensor(2)) 
+        # criteria_for_layer = gradient[idx] / (torch.linalg.norm(gradient[idx]) + 1e-8)
         importance.append(torch.sum((criteria_for_layer), dim=(1, 2, 3)))
+        # importance.append(torch.sum((gradient[idx]), dim=(1, 2, 3)))
 def pruning():
 
-    def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None):
+    def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None,gate=False):
         
         if mean is not None:
             zero_tensor = torch.zeros(1,device=device)
@@ -191,6 +195,18 @@ def pruning():
             mean = mean[mean != 0]
             var = var[var != 0]
             return weight,bias,mean,var
+        elif gate:
+            weight_zero_tensor = torch.zeros(1,device=device)
+            # bias_zero_tensor = torch.zeros(1,device=device)
+            for idx in sorted_idx:
+                weight[idx.item()] = weight_zero_tensor
+                # bias[idx.item()] = bias_zero_tensor
+            nonZeroRows_weight = torch.abs(weight) > 0
+            
+            weight = weight[nonZeroRows_weight]
+            # bias = bias[bias != 0]
+            # return weight,bias
+            return weight
         else:
             weight_zero_tensor = torch.zeros(list(weight[0].size()),device=device)
             # bias_zero_tensor = torch.zeros(1,device=device)
@@ -232,6 +248,8 @@ def pruning():
             if isinstance(old, nn.Linear):
                 new.weight.data = old.weight.data.clone()
                 new.bias.data = old.bias.data.clone()
+            if isinstance(old,Gate):
+                new.weight.data = old.weight.data.clone()
         else:
             if index >= 17:
                 valve = False
@@ -246,10 +264,11 @@ def pruning():
                 if isinstance(old, nn.Conv2d):
                     if old.kernel_size == (1,1) and sorted_idx == None:
                         
-                        # importance = torch.sum(torch.abs(old.weight.grad), dim=(1, 2, 3))
                         
                         # importance = torch.sum(torch.abs(old.weight.data), dim=(1, 2, 3))
+                        # sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
                         sorted_importance, sorted_idx = torch.sort(importance[convIndex], dim=0, descending=True)
+                        
                         pruning_amount = (old.weight.data.size(0) - new.weight.data.size(0))
                         total_size = len(sorted_idx)
                         sorted_idx = sorted_idx[total_size-pruning_amount:]
@@ -272,6 +291,8 @@ def pruning():
                         new.running_mean = old.running_mean.clone()
                         new.running_var = old.running_var.clone()
                     skip_batch_norm = False
+                if isinstance(old,Gate):
+                    new.weight.data = remove_filter_by_index(old.weight.data, sorted_idx,gate=True)
                 
             else:
                 if isinstance(old, nn.Conv2d):
@@ -284,9 +305,12 @@ def pruning():
                 if isinstance(old, nn.Linear):
                     new.weight.data = old.weight.data.clone()
                     new.bias.data = old.bias.data.clone()
+                if isinstance(old,Gate):
+                    new.weight.data = old.weight.data.clone()
             
     print("Validation:")
     validation(0, new_net,save=False)
+    compare_models(net,new_net)
     
 def UpdateNet(index,precentage):
     global new_net
@@ -299,24 +323,25 @@ def UpdateNet(index,precentage):
     new_Mobilenet = []
     for idx in range(len(block_channel_origin)):
         
-        # if not (precentage < 0.00001):
-        #     new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
-        # else:
-        #     new_Mobilenet.append(1)
- 
-        if idx == index:
-            if not (precentage < 0.00001):
-                new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
-            else:
-                new_Mobilenet.append(1)
+        if not (precentage < 0.00001):
+            new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
         else:
-            new_Mobilenet.append(block_channel_origin[idx])
-    print("Layer # :",index,"from ",block_channel_origin[index],"to",new_Mobilenet[index])
-    # print("Pruning",str((1-precentage)*100)+"%")
+            new_Mobilenet.append(1)
+    print("Pruning",str((1-precentage)*100)+"%")
+    #     if idx == index:
+    #         if not (precentage < 0.00001):
+    #             new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
+    #         else:
+    #             new_Mobilenet.append(1)
+    #     else:
+    #         new_Mobilenet.append(block_channel_origin[idx])
+    # print("Layer # :",index,"from ",block_channel_origin[index],"to",new_Mobilenet[index])
+    
     new_net = models(config=new_Mobilenet)
     net = models(config=block_channel_origin)
     net.to(device)
-    net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+    net.load_state_dict(torch.load("weight/acc71.96%_Mobilenet.pth"))
+    # net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
     
     optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
@@ -329,16 +354,16 @@ def UpdateNet(index,precentage):
     MobilenetV2GetGradient()
     calculateImportant()
 
-train(0, net, optimizer,gradient_loader)
-# precentage = 0
-# for idx in range(11):
-#     writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Gradient")
-#     UpdateNet(idx, 1-precentage)
-#     pruning()
-#     writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
-#     precentage += 0.1 
-#     best_acc = 0
-#     writer.close()
+# pruning()
+precentage = 0
+for idx in range(11):
+    writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Gradient")
+    UpdateNet(idx, 1-precentage)
+    pruning()
+    writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
+    precentage += 0.1 
+    best_acc = 0
+    writer.close()
 # for idx in range(len(block_channel_origin)):
 #     writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Gradient/layer"+str(idx))
 #     precentage = 0
