@@ -14,11 +14,12 @@ from pytorch_grad_cam import GradCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XG
 import copy
 import os
 
-batch_size = 1280
+batch_size = 512
 input_size = 32
 fineTurningEpoch = range(200)
 VGG_Layer_Number = 13
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 # Data preparation
 transform = transforms.Compose(
     [
@@ -226,8 +227,9 @@ def VGG16Pruning():
                     m.weight.grad[x,:,:,:]*=feature_map[x]
 
                     
-                importance = torch.sum(m.weight.grad,dim=(0,2,3))
-
+                # importance = torch.sum(m.weight.grad,dim=(0,2,3))
+                criteria_for_layer = m.weight.grad / (torch.linalg.norm(m.weight.grad) + 1e-8)
+                importance = torch.sum(criteria_for_layer,dim=(0,2,3))
                 out_channels = new_net.features[index].weight.data.shape[0]
                 
 
@@ -295,7 +297,6 @@ def UpdateNet(index,precentage):
     gradient = []
     
     VGG16PruningSetUp()
-    
     train(0, net, optimizer,gradient_loader)
 
 precentage = 0
