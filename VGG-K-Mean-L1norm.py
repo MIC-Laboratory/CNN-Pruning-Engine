@@ -16,7 +16,8 @@ from Vgg import VGG as model
 from sklearn.cluster import KMeans
 from random import randrange
 from torch.utils.tensorboard import SummaryWriter
-
+from k_mean import KMeans as L2_norm_Kmeans
+from ptflops import get_model_complexity_info
 batch_size = 128
 input_size = 32
 fineTurningEpoch = range(20)
@@ -203,10 +204,12 @@ def VGG16Pruning():
             remove_filter = m.weight.data.shape[0] - out_channel
             num_filter = m.weight.data.size()[0]
             n_clusters = int((1/10)*num_filter)
-            m_weight_vector = m.weight.data.view(num_filter,-1).cpu()
-            kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
-            centers = kmeans.cluster_centers_
-            labels = kmeans.labels_
+            
+            m_weight_vector = m.weight.data.reshape(num_filter,-1).cpu()
+            labels,centers = L2_norm_Kmeans(m_weight_vector,n_clusters)
+            # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
+            # centers = kmeans.cluster_centers_
+            # labels = kmeans.labels_
             group = [[] for _ in range(n_clusters)] 
             for idx in range(num_filter):
                 group[labels[idx]].append(idx)
@@ -278,33 +281,58 @@ def UpdateNet(index,precentage):
         index+=1
     new_VGG16 = []
     for idx in range(len(VGG16)):
-        
-        if idx == index:
-            if not (precentage < 0.00001):
-                new_VGG16.append(round((precentage)*VGG16[idx]))
-            else:
-                new_VGG16.append(1)
+        if VGG16[idx] == "M":
+            new_VGG16.append("M")
+            continue
+        if not (precentage < 0.00001):
+            new_VGG16.append(round((precentage)*VGG16[idx]))
         else:
-            new_VGG16.append(VGG16[idx])
-    print("Layer # :",index,"from ",VGG16[index],"to",new_VGG16[index])
+            new_VGG16.append(1)
+    new_VGG16[-2]=512
+
+        # if idx == index:
+        #     if not (precentage < 0.00001):
+        #         new_VGG16.append(round((precentage)*VGG16[idx]))
+        #     else:
+        #         new_VGG16.append(1)
+        # else:
+        #     new_VGG16.append(VGG16[idx])
+    # print("Layer # :",index,"from ",VGG16[index],"to",new_VGG16[index])
+    print("Pruning Rate:",str((1-precentage)*100))
     new_net = model(vgg_name="VGG16",vgg_cfg_pruning=new_VGG16,last_layer=new_VGG16[-2])
     net = model(vgg_name="VGG16")
     net.to(device)
     net.load_state_dict(torch.load("weight/acc93.52%_VGG.pth"))
     optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-    train(0, net, optimizer)
+    
 
-
-for idx in range(VGG_Layer_Number):
-    writer = SummaryWriter("VGG-K-Mean/L1norm/layers"+str(idx))
-    precentage = 0
+precentage = 0
+writer = SummaryWriter("VGG-data/VGG-K-Mean-L1norm-L2norm")
+for idx in range(11):
+    
+    
     UpdateNet(idx, 1-precentage)
-    for _ in range(10):
-        VGG16Pruning()
-        writer.add_scalar('VGG-K-Mean-L1norm', best_acc, (precentage)*100)
-        precentage += 0.1 
-        UpdateNet(idx, (1-precentage))
-        best_acc = 0
+    
+    VGG16Pruning()
+    macs, params = get_model_complexity_info(new_net, (3, 32, 32), as_strings=True,
+                                        print_per_layer_stat=False, verbose=True)
+    writer.add_scalar('ACC', best_acc, (precentage)*100)
+    writer.add_scalar('Params(M)', float(params.split(" ")[0]), (precentage)*100)
+    writer.add_scalar('MACs(G)', float(macs.split(" ")[0]), (precentage)*100)
+    precentage += 0.1 
+
+    best_acc = 0
     writer.close()
+# for idx in range(VGG_Layer_Number):
+#     writer = SummaryWriter("VGG-K-Mean/L1norm/layers"+str(idx))
+#     precentage = 0
+#     UpdateNet(idx, 1-precentage)
+#     for _ in range(10):
+#         VGG16Pruning()
+#         writer.add_scalar('VGG-K-Mean-L1norm', best_acc, (precentage)*100)
+#         precentage += 0.1 
+#         UpdateNet(idx, (1-precentage))
+#         best_acc = 0
+#     writer.close()
     

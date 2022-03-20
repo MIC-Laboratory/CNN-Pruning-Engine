@@ -1,3 +1,4 @@
+from gc import garbage
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,11 +12,18 @@ from torchsummary import summary
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.ops.misc import ConvNormActivation, SqueezeExcitation
 
-from mobilenetv2 import MobileNetV2 as models
-from mobilenetv2 import Block as block
+# from mobilenetv2 import MobileNetV2 as models
+from mobilenetv2_no_gate import MobileNetV2 as models
+from mobilenetv2_no_gate import Block as block
+# from mobilenetv2 import Block as block
+from mobilenetv2 import GateLayer as Gate
+
+from gradientDataSet import CIFAR10 as gradientSet
+from ptflops import get_model_complexity_info
 
 import copy
 import os
+import numpy as np
 
 batch_size = 128
 input_size = 32
@@ -23,6 +31,7 @@ fineTurningEpoch = range(200)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 best_acc = 0
 lr_rate = 0.11
+weight = "weight/acc93%_MobilenetV2.pth"
 # Data preparation
 transform = transforms.Compose(
     [
@@ -35,7 +44,7 @@ transform = transforms.Compose(
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
+                                          shuffle=True,num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=True, transform=transform)
@@ -45,13 +54,14 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
 classes = trainset.classes
 
 block_channel_origin = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,960,960,960]
-block_channel_pruning = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,864,960,960]
+block_channel_pruning = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,960,960,960]
 
 net = models(config = block_channel_origin)
 net.to(device)
 new_net = models(config = block_channel_pruning)
-net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
-
+net.load_state_dict(torch.load(weight)["net"])
+# net.load_state_dict(torch.load(weight))
+# 
 
 
 criterion = nn.CrossEntropyLoss()
@@ -92,7 +102,7 @@ def validation(epoch,network,file_name="MobilenetV2_Prune.pth",save=True):
                     torch.save(network.state_dict(), PATH)
                     print("Save: Acc "+str(best_acc))
 
-def train(epoch,network,optimizer):
+def train(epoch,network,optimizer,loader):
     # loop over the dataset multiple times
     running_loss = 0.0
     total = 0
@@ -100,20 +110,21 @@ def train(epoch,network,optimizer):
     
     network.to(device)
     network.train()
-    with tqdm(total=len(trainloader)) as pbar:
-        for i, data in enumerate(trainloader, 0):
+    with tqdm(total=len(loader)) as pbar:
+    
+        for i, data in enumerate(loader, 0):
             
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
 
             # zero the parameter gradients
-            optimizer.zero_grad()
+            # optimizer.zero_grad()
 
             # forward + backward + optimize
             outputs = network(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
-            optimizer.step()
+            # optimizer.step()
 
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
@@ -124,7 +135,7 @@ def train(epoch,network,optimizer):
             accuracy = 100 * correct / total
             pbar.update()
             pbar.set_description_str("Loss: {:.3f} | Acc: {:.3f} {}/{}".format(running_loss/(i+1),accuracy,correct,total))
-
+            # activation[str(i)] = network.get_activations(inputs).detach()
 def compare_models(model_1, model_2):
     models_differ = 0
     for key_item_1, key_item_2 in zip(model_1.state_dict().items(), model_2.state_dict().items()):
@@ -139,9 +150,10 @@ def compare_models(model_1, model_2):
     if models_differ == 0:
         print('Models match perfectly! :)')
 
+
 def pruning():
 
-    def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None):
+    def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None,gate=False):
         
         if mean is not None:
             zero_tensor = torch.zeros(1,device=device)
@@ -155,6 +167,18 @@ def pruning():
             mean = mean[mean != 0]
             var = var[var != 0]
             return weight,bias,mean,var
+        elif gate:
+            weight_zero_tensor = torch.zeros(1,device=device)
+            # bias_zero_tensor = torch.zeros(1,device=device)
+            for idx in sorted_idx:
+                weight[idx.item()] = weight_zero_tensor
+                # bias[idx.item()] = bias_zero_tensor
+            nonZeroRows_weight = torch.abs(weight) > 0
+            
+            weight = weight[nonZeroRows_weight]
+            # bias = bias[bias != 0]
+            # return weight,bias
+            return weight
         else:
             weight_zero_tensor = torch.zeros(list(weight[0].size()),device=device)
             # bias_zero_tensor = torch.zeros(1,device=device)
@@ -183,6 +207,7 @@ def pruning():
     index = -1
     skip_batch_norm = False
     shortcut_time = False
+    convIndex = 0
     for old,new in zip(net.modules(),new_net.modules()):
         if False:
             if isinstance(old, nn.Conv2d):
@@ -195,6 +220,8 @@ def pruning():
             if isinstance(old, nn.Linear):
                 new.weight.data = old.weight.data.clone()
                 new.bias.data = old.bias.data.clone()
+            if isinstance(old,Gate):
+                new.weight.data = old.weight.data.clone()
         else:
             if index >= 17:
                 valve = False
@@ -208,13 +235,19 @@ def pruning():
             if valve and not shortcut_time:
                 if isinstance(old, nn.Conv2d):
                     if old.kernel_size == (1,1) and sorted_idx == None:
+                        
+                        
                         importance = torch.sum(torch.abs(old.weight.data), dim=(1, 2, 3))
                         sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+                        
                         pruning_amount = (old.weight.data.size(0) - new.weight.data.size(0))
                         total_size = len(sorted_idx)
                         sorted_idx = sorted_idx[total_size-pruning_amount:]
                         new.weight.data = remove_filter_by_index(old.weight.data, sorted_idx)
+                        
+                        convIndex+=1
                     elif old.kernel_size != (1,1):
+                        
                         # new.weight.data = remove_kernel_by_index(old.weight.data.clone(), sorted_idx)
                         new.weight.data = remove_filter_by_index(old.weight.data, sorted_idx)
                     else:
@@ -229,6 +262,8 @@ def pruning():
                         new.running_mean = old.running_mean.clone()
                         new.running_var = old.running_var.clone()
                     skip_batch_norm = False
+                if isinstance(old,Gate):
+                    new.weight.data = remove_filter_by_index(old.weight.data, sorted_idx,gate=True)
                 
             else:
                 if isinstance(old, nn.Conv2d):
@@ -241,9 +276,12 @@ def pruning():
                 if isinstance(old, nn.Linear):
                     new.weight.data = old.weight.data.clone()
                     new.bias.data = old.bias.data.clone()
+                if isinstance(old,Gate):
+                    new.weight.data = old.weight.data.clone()
             
-    print("After:")
+    print("Validation:")
     validation(0, new_net,save=False)
+    # compare_models(net,new_net)
     
 def UpdateNet(index,precentage):
     global new_net
@@ -253,33 +291,58 @@ def UpdateNet(index,precentage):
 
     new_Mobilenet = []
     for idx in range(len(block_channel_origin)):
-        
-        if idx == index:
-            if not (precentage < 0.00001):
-                new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
-            else:
-                new_Mobilenet.append(1)
-        else:
+        if idx == 3 or idx == 6 or idx == 16:
             new_Mobilenet.append(block_channel_origin[idx])
-    print("Layer # :",index,"from ",block_channel_origin[index],"to",new_Mobilenet[index])
+            continue
+        if not (precentage < 0.00001):
+            new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
+        else:
+            new_Mobilenet.append(1)
+    print("Pruning",str((1-precentage)*100)+"%")
+
+    #     if idx == index:
+    #         if not (precentage < 0.00001):
+    #             new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
+    #         else:
+    #             new_Mobilenet.append(1)
+    #     else:
+    #         new_Mobilenet.append(block_channel_origin[idx])
+    # print("Layer # :",index,"from ",block_channel_origin[index],"to",new_Mobilenet[index])
+    
     new_net = models(config=new_Mobilenet)
     net = models(config=block_channel_origin)
     net.to(device)
-    net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+    net.load_state_dict(torch.load(weight)["net"])
+    # net.load_state_dict(torch.load(weight))
     
-    optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-    
-    
-for idx in range(len(block_channel_origin)):
-    writer = SummaryWriter("MobilenetV2-data/MobilenetV2-L1norm/layer"+str(idx))
-    precentage = 0
+
+ 
+
+
+precentage = 0
+for idx in range(11):
+    writer = SummaryWriter("MobilenetV2-data/MobilenetV2-L1norm-no-gate")
     UpdateNet(idx, 1-precentage)
-    
-    for _ in range(11):
-        pruning()
-        writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
-        precentage += 0.1 
-        UpdateNet(idx, (1-precentage))
-        best_acc = 0
+    pruning()
+    macs, params = get_model_complexity_info(new_net, (3, 32, 32), as_strings=True,
+                                        print_per_layer_stat=False, verbose=True)
+    writer.add_scalar('ACC', best_acc, (precentage)*100)
+    writer.add_scalar('Params(M)', float(params.split(" ")[0]), (precentage)*100)
+    writer.add_scalar('MACs(G)', float(macs.split(" ")[0]), (precentage)*100)
+    precentage += 0.1 
+    best_acc = 0
     writer.close()
+# for idx in range(len(block_channel_origin)):
+#     writer = SummaryWriter("MobilenetV2-data/MobilenetV2-L1norm/layer"+str(idx))
+#     precentage = 0
+#     UpdateNet(idx, 1-precentage)
+    
+#     for _ in range(11):
+#         pruning()
+#         writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
+#         precentage += 0.1 
+#         UpdateNet(idx, (1-precentage))
+#         best_acc = 0
+#     writer.close()

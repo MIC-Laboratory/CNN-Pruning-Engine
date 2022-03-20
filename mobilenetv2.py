@@ -19,7 +19,7 @@ class GateLayer(nn.Module):
         self.do_not_update = True
 
     def forward(self, input):
-        return input*self.weight.view(*self.size_mask)
+        return input * self.weight.view(*self.size_mask)
 
     def extra_repr(self):
         return 'in_features={}, out_features={}'.format(

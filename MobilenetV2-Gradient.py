@@ -11,18 +11,22 @@ from torchsummary import summary
 # from mobilenetv2 import MobileNetV2 as model
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.ops.misc import ConvNormActivation, SqueezeExcitation
-
-from mobilenetv2 import MobileNetV2 as models
-from mobilenetv2 import Block as block
+from mobilenetv2_no_gate import MobileNetV2 as models
+from mobilenetv2_no_gate import Block as block
+# from mobilenetv2 import MobileNetV2 as models
+# from mobilenetv2 import Block as block
 from mobilenetv2 import GateLayer as Gate
 
 from gradientDataSet import CIFAR10 as gradientSet
+from ptflops import get_model_complexity_info
 
 import copy
 import os
 import numpy as np
 
-batch_size = 128
+weight = "weight/acc93%_MobilenetV2.pth"
+
+batch_size = 10
 input_size = 32
 fineTurningEpoch = range(200)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -40,7 +44,7 @@ transform = transforms.Compose(
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
+                                          shuffle=True,num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=True, transform=transform)
@@ -49,7 +53,7 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
 gradient_Set = gradientSet(root='./data', train=True,download=True, transform=transform)
 
 gradient_loader = torch.utils.data.DataLoader(gradient_Set, batch_size=batch_size,
-                                         shuffle=True, num_workers=2)
+                                         shuffle=True,num_workers=2)
 classes = trainset.classes
 
 block_channel_origin = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,960,960,960]
@@ -58,8 +62,8 @@ block_channel_pruning = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,9
 net = models(config = block_channel_origin)
 net.to(device)
 new_net = models(config = block_channel_pruning)
-net.load_state_dict(torch.load("weight/acc71.96%_Mobilenet.pth"))
-# net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+net.load_state_dict(torch.load(weight)["net"])
+# net.load_state_dict(torch.load(weight))
 
 
 
@@ -113,19 +117,20 @@ def train(epoch,network,optimizer,loader):
     network.to(device)
     network.train()
     with tqdm(total=len(loader)) as pbar:
+    
         for i, data in enumerate(loader, 0):
             
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
 
             # zero the parameter gradients
-            optimizer.zero_grad()
+            # optimizer.zero_grad()
 
             # forward + backward + optimize
             outputs = network(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
-            optimizer.step()
+            # optimizer.step()
 
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
@@ -170,15 +175,25 @@ def MobilenetV2GetGradient():
 
 def calculateImportant():
     global importance
-    for idx in range(len(gradient)):
-        feature_map = torch.mean(activation[idx],dim=(0,2,3))
-        for x in range(feature_map.size(0)):
-            gradient[idx][x,:,:,:]*=feature_map[idx]
+    temp_activation_map = [[] for _ in range(180)] 
+    
+    for index,activation_map in enumerate(activation):
 
-        criteria_for_layer = torch.pow(gradient[idx],torch.tensor(2)) 
+        temp_activation_map[(index+1) % 17].append(activation_map)
+    temp_activation_map[0], temp_activation_map[17] = temp_activation_map[17], temp_activation_map[0]
+    for idx in range(1,len(gradient)+1):
+        
+        feature_map = torch.mean(torch.cat(temp_activation_map[idx],dim=0),dim=(0,2,3))
+        for x in range(feature_map.size(0)):
+
+            gradient[idx-1][x,:,:,:]*=feature_map[idx-1]
+
+        criteria_for_layer = torch.pow(gradient[idx-1],torch.tensor(2)) 
+        
+        criteria_for_layer = torch.sum((criteria_for_layer), dim=(1, 2, 3))
         # criteria_for_layer = gradient[idx] / (torch.linalg.norm(gradient[idx]) + 1e-8)
-        importance.append(torch.sum((criteria_for_layer), dim=(1, 2, 3)))
-        # importance.append(torch.sum((gradient[idx]), dim=(1, 2, 3)))
+        importance.append(criteria_for_layer/4)
+        # importance.append(criteria_for_layer)
 def pruning():
 
     def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None,gate=False):
@@ -310,7 +325,7 @@ def pruning():
             
     print("Validation:")
     validation(0, new_net,save=False)
-    compare_models(net,new_net)
+    # compare_models(net,new_net)
     
 def UpdateNet(index,precentage):
     global new_net
@@ -322,12 +337,15 @@ def UpdateNet(index,precentage):
     global importance
     new_Mobilenet = []
     for idx in range(len(block_channel_origin)):
-        
+        if idx == 3 or idx == 6 or idx == 16:
+            new_Mobilenet.append(block_channel_origin[idx])
+            continue
         if not (precentage < 0.00001):
             new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
         else:
             new_Mobilenet.append(1)
     print("Pruning",str((1-precentage)*100)+"%")
+
     #     if idx == index:
     #         if not (precentage < 0.00001):
     #             new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
@@ -340,32 +358,38 @@ def UpdateNet(index,precentage):
     new_net = models(config=new_Mobilenet)
     net = models(config=block_channel_origin)
     net.to(device)
-    net.load_state_dict(torch.load("weight/acc71.96%_Mobilenet.pth"))
-    # net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+    net.load_state_dict(torch.load(weight)["net"])
+    # net.load_state_dict(torch.load(weight))
     
-    optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
     activation = []
     gradient = []
     importance = []
     MobilenetV2PruningSetUp()
     print("Adding gradient")
+    
     train(0, net, optimizer,gradient_loader)
     MobilenetV2GetGradient()
     calculateImportant()
 
-# pruning()
+
+validation(0, net,save=False)
 precentage = 0
 for idx in range(11):
-    writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Gradient")
+    writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Gradient-No-Gate")
     UpdateNet(idx, 1-precentage)
     pruning()
-    writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
+    macs, params = get_model_complexity_info(new_net, (3, 32, 32), as_strings=True,
+                                        print_per_layer_stat=False, verbose=True)
+    writer.add_scalar('ACC', best_acc, (precentage)*100)
+    writer.add_scalar('Params(M)', float(params.split(" ")[0]), (precentage)*100)
+    writer.add_scalar('MACs(G)', float(macs.split(" ")[0]), (precentage)*100)
     precentage += 0.1 
     best_acc = 0
     writer.close()
 # for idx in range(len(block_channel_origin)):
-#     writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Gradient/layer"+str(idx))
+#     writer = SummaryWriter("MobilenetV2-data/MobilenetV2-L1norm/layer"+str(idx))
 #     precentage = 0
 #     UpdateNet(idx, 1-precentage)
     

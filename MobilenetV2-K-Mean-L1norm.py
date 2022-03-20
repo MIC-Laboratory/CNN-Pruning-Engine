@@ -10,10 +10,13 @@ from torchsummary import summary
 # from mobilenetv2 import MobileNetV2 as model
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.ops.misc import ConvNormActivation, SqueezeExcitation
-from sklearn.cluster import KMeans
+
 from mobilenetv2 import MobileNetV2 as models
 from mobilenetv2 import Block as block
-
+from mobilenetv2 import GateLayer as Gate
+from gradientDataSet import CIFAR10 as gradientSet
+from sklearn.cluster import KMeans
+from k_mean import KMeans as L2_norm_Kmeans
 import copy
 import os
 
@@ -50,7 +53,7 @@ block_channel_pruning = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,9
 net = models(config = block_channel_origin)
 net.to(device)
 new_net = models(config = block_channel_pruning)
-net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+net.load_state_dict(torch.load("weight/acc94.38%_MobilenetV2.pth"))
 
 
 
@@ -92,7 +95,7 @@ def validation(epoch,network,file_name="MobilenetV2_Prune.pth",save=True):
                     torch.save(network.state_dict(), PATH)
                     print("Save: Acc "+str(best_acc))
 
-def train(epoch,network,optimizer):
+def train(epoch,network,optimizer,loader):
     # loop over the dataset multiple times
     running_loss = 0.0
     total = 0
@@ -100,20 +103,20 @@ def train(epoch,network,optimizer):
     
     network.to(device)
     network.train()
-    with tqdm(total=len(trainloader)) as pbar:
-        for i, data in enumerate(trainloader, 0):
+    with tqdm(total=len(loader)) as pbar:
+        for i, data in enumerate(loader, 0):
             
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
 
             # zero the parameter gradients
-            optimizer.zero_grad()
+            # optimizer.zero_grad()
 
             # forward + backward + optimize
             outputs = network(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
-            optimizer.step()
+            # optimizer.step()
 
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
@@ -141,7 +144,7 @@ def compare_models(model_1, model_2):
 
 def pruning():
 
-    def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None):
+    def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None,gate=False):
         
         if mean is not None:
             zero_tensor = torch.zeros(1,device=device)
@@ -155,6 +158,18 @@ def pruning():
             mean = mean[mean != 0]
             var = var[var != 0]
             return weight,bias,mean,var
+        elif gate:
+            weight_zero_tensor = torch.zeros(1,device=device)
+            # bias_zero_tensor = torch.zeros(1,device=device)
+            for idx in sorted_idx:
+                weight[idx.item()] = weight_zero_tensor
+                # bias[idx.item()] = bias_zero_tensor
+            nonZeroRows_weight = torch.abs(weight) > 0
+            
+            weight = weight[nonZeroRows_weight]
+            # bias = bias[bias != 0]
+            # return weight,bias
+            return weight
         else:
             weight_zero_tensor = torch.zeros(list(weight[0].size()),device=device)
             # bias_zero_tensor = torch.zeros(1,device=device)
@@ -183,6 +198,7 @@ def pruning():
     index = -1
     skip_batch_norm = False
     shortcut_time = False
+    convIdx = 0
     for old,new in zip(net.modules(),new_net.modules()):
         if False:
             if isinstance(old, nn.Conv2d):
@@ -211,11 +227,15 @@ def pruning():
                         out_channel = new.weight.data.shape[0]
                         remove_filter = old.weight.data.shape[0] - out_channel
                         num_filter = old.weight.data.size()[0]
-                        n_clusters = int((1/10)*num_filter)
-                        m_weight_vector = old.weight.data.view(num_filter,-1).cpu()
-                        kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
-                        centers = kmeans.cluster_centers_
-                        labels = kmeans.labels_
+                        n_clusters = int((1/9)*num_filter)
+                        # m_weight_vector = old.weight.data.view(num_filter,-1).cpu()
+                        m_weight_vector = old.weight.data.reshape(num_filter,-1).cpu()
+                        # kmeans = KMeans(n_clusters=n_clusters,random_state=0).fit(m_weight_vector)
+                        labels,centers = L2_norm_Kmeans(m_weight_vector,n_clusters,n_clusters)
+                         
+                        # centers = kmeans.cluster_centers_
+                        
+                        # labels = kmeans.labels_
                         group = [[] for _ in range(n_clusters)] 
                         for idx in range(num_filter):
                             group[labels[idx]].append(idx)
@@ -234,6 +254,7 @@ def pruning():
                         pruning_amount_group = [int(remove_filter*(percentage/100)) for percentage in percentage_group]
                         for counter,filter_index_group in enumerate(group,0):
                             filetr_index_group_temp = copy.deepcopy(filter_index_group)
+                            
                             importance = torch.sum(torch.abs(old.weight.data[filter_index_group]), dim=(1, 2, 3))
                             sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
                             filetr_index_group_temp = [filetr_index_group_temp[index] for index in list(sorted_idx)]
@@ -263,23 +284,25 @@ def pruning():
                         # total_size = len(sorted_idx)
                         # sorted_idx = sorted_idx[total_size-pruning_amount:]
                         sorted_idx = torch.tensor(pruning_index_group).to(device)
-                        new.weight.data = remove_filter_by_index(old.weight.data, sorted_idx)
+                        new.weight.data = remove_filter_by_index(old.weight.data.clone(), sorted_idx)
+                        convIdx += 1
                     elif old.kernel_size != (1,1):
                         # new.weight.data = remove_kernel_by_index(old.weight.data.clone(), sorted_idx)
-                        new.weight.data = remove_filter_by_index(old.weight.data, sorted_idx)
+                        new.weight.data = remove_filter_by_index(old.weight.data.clone(), sorted_idx)
                     else:
-                        new.weight.data = remove_kernel_by_index(old.weight.data, sorted_idx)
+                        new.weight.data = remove_kernel_by_index(old.weight.data.clone(), sorted_idx)
                         skip_batch_norm = True
                 if isinstance(old, nn.BatchNorm2d):
                     if (not skip_batch_norm):
-                        new.weight.data,new.bias.data,new.running_mean,new.running_var = remove_filter_by_index( old.weight.data, sorted_idx,bias=old.bias.data,mean=old.running_mean,var=old.running_var)
+                        new.weight.data,new.bias.data,new.running_mean,new.running_var = remove_filter_by_index( old.weight.data.clone(), sorted_idx,bias=old.bias.data,mean=old.running_mean,var=old.running_var)
                     else:
                         new.weight.data = old.weight.data.clone()
                         new.bias.data = old.bias.data.clone()
                         new.running_mean = old.running_mean.clone()
                         new.running_var = old.running_var.clone()
                     skip_batch_norm = False
-                
+                if isinstance(old,Gate):
+                    new.weight.data = remove_filter_by_index(old.weight.data.clone(), sorted_idx,gate=True)
             else:
                 if isinstance(old, nn.Conv2d):
                     new.weight.data = old.weight.data.clone()
@@ -291,7 +314,8 @@ def pruning():
                 if isinstance(old, nn.Linear):
                     new.weight.data = old.weight.data.clone()
                     new.bias.data = old.bias.data.clone()
-            
+                if isinstance(old,Gate):
+                    new.weight.data = old.weight.data.clone()
     print("After:")
     validation(0, new_net,save=False)
     
@@ -301,36 +325,56 @@ def UpdateNet(index,precentage):
     global scheduler
     global net
 
+
     new_Mobilenet = []
+    
     for idx in range(len(block_channel_origin)):
-        
-        if idx == index:
-            if not (precentage < 0.00001):
-                new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
-            else:
-                new_Mobilenet.append(1)
-        else:
+        if idx == 16 or idx == 3 or idx == 6:
             new_Mobilenet.append(block_channel_origin[idx])
-    print("Layer # :",index,"from ",block_channel_origin[index],"to",new_Mobilenet[index])
+            continue
+        if not (precentage < 0.00001):
+            new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
+        else:
+            new_Mobilenet.append(1)
+    print("Pruning",str((1-precentage)*100)+"%")
+    #     if idx == index:
+    #         if not (precentage < 0.00001):
+    #             new_Mobilenet.append(round((precentage)*block_channel_origin[idx]))
+    #         else:
+    #             new_Mobilenet.append(1)
+    #     else:
+    #         new_Mobilenet.append(block_channel_origin[idx])
+    # print("Layer # :",index,"from ",block_channel_origin[index],"to",new_Mobilenet[index])
     new_net = models(config=new_Mobilenet)
     net = models(config=block_channel_origin)
     net.to(device)
-    net.load_state_dict(torch.load("weight/acc93%_MobilenetV2.pth")["net"])
+    net.load_state_dict(torch.load("weight/acc94.38%_MobilenetV2.pth"))
     
-    optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-    
-    
 
-for idx in range(len(block_channel_origin)):
-    writer = SummaryWriter("MobilenetV2-K-Mean/L1norm/layer"+str(idx))
-    precentage = 0
-    UpdateNet(idx, 1-precentage)
     
-    for _ in range(10):
-        pruning()
-        writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
-        precentage += 0.1 
-        UpdateNet(idx, (1-precentage))
-        best_acc = 0
+# UpdateNet(0, 1-0)
+
+# pruning()
+precentage = 0
+for idx in range(11):
+    writer = SummaryWriter("MobilenetV2-data/MobilenetV2-Kmean-L1norm")
+    UpdateNet(idx, 1-precentage)
+    pruning()
+    writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
+    precentage += 0.1 
+    best_acc = 0
     writer.close()
+# for idx in range(len(block_channel_origin)):
+#     writer = SummaryWriter("MobilenetV2-K-Mean/L1norm/layer"+str(idx))
+#     precentage = 0
+#     UpdateNet(idx, 1-precentage)
+    
+#     for _ in range(10):
+#         pruning()
+#         writer.add_scalar('Prune the smallest filters', best_acc, (precentage)*100)
+#         precentage += 0.1 
+#         UpdateNet(idx, (1-precentage))
+#         best_acc = 0
+#     writer.close()

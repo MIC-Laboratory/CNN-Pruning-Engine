@@ -12,9 +12,9 @@ from torch.utils.tensorboard import SummaryWriter
 import copy
 import os
 
-batch_size = 128
+batch_size = 256
 input_size = 32
-fineTurningEpoch = range(210)
+fineTurningEpoch = range(250)
 VGG_Layer_Number = 13
 lr_rate = 0.1
 momentum = 0.9
@@ -49,7 +49,6 @@ block_channel_origin = [32,96,144,144,192,192,192,384,384,384,384,576,576,576,96
 
 net = model(config = block_channel_origin)
 net.to(device)
-
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=lr_rate, momentum=momentum,weight_decay=weight_decay)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
@@ -127,12 +126,12 @@ def train(epoch,network,optimizer):
             
             accuracy = 100 * correct / total
             pbar.update()
-            pbar.set_description_str("Loss: {:.3f} | Acc: {:.3f} {}/{}".format(running_loss/(i+1),accuracy,correct,total))
+            pbar.set_description_str("Epoch: {} | Loss: {:.3f} | Acc: {:.3f} {}/{}".format(epoch,running_loss/(i+1),accuracy,correct,total))
 
     
 
 for epoch in fineTurningEpoch:
     # adjust_learning_rate(optimizer, epoch)
     train(epoch, network=net, optimizer=optimizer)
-    validation(epoch, network=net,file_name="Mobilenet.pth")
+    validation(epoch, network=net,file_name="MobilenetV2.pth")
     scheduler.step()

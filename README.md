@@ -18,4 +18,21 @@ If you obtain PORT problem, can use the commend below to change ports.
 
 ```--port = [PORT]```
 
-***The K-mean cluster and gradient pruning still not finish yet. The result may not correct.***
+
+## MobilenetV2 Pruning Result
+
+Labels:
+
+![MobilenetV2-Data-Labels](MobilenetV2-data/Labels.png)
+
+ACC:
+
+![MobilenetV2-Data-ACC](MobilenetV2-data/ACC.svg)
+
+Flops:
+
+![MobilenetV2-Data-MACs](MobilenetV2-data/MACs(G).svg)
+
+Params:
+
+![MobilenetV2-Data-Params](MobilenetV2-data/Params(M).svg)
