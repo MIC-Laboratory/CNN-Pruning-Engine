@@ -21,18 +21,24 @@ If you obtain PORT problem, can use the commend below to change ports.
 
 ## MobilenetV2 Pruning Result
 
-Labels:
-
-![MobilenetV2-Data-Labels](MobilenetV2-data/Labels.png)
 
 ACC:
 
-![MobilenetV2-Data-ACC](MobilenetV2-data/ACC.svg)
+![MobilenetV2-Data-ACC](MobilenetV2-data/MobilenetV2_ACC.png)
 
-Flops:
-
-![MobilenetV2-Data-MACs](MobilenetV2-data/MACs(G).svg)
 
 Params:
 
-![MobilenetV2-Data-Params](MobilenetV2-data/Params(M).svg)
+![MobilenetV2-Data-Params](MobilenetV2-data/MobilenetV2_Params.png)
+
+## VGG Pruning Result
+
+
+ACC:
+
+![VGG-Data-ACC](VGG-data/VGG-Data-ACC.png)
+
+
+Params:
+
+![VGG-Data-Params](VGG-data/VGG-Data-Params.png)
