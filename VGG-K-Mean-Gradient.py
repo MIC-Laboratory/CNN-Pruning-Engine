@@ -1,29 +1,22 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
+
 import torchvision
 import copy
 import os
-import numpy as np
-import math
-import time
+
 from torchvision import transforms
 from torchvision import models
 from tqdm import tqdm
 from torchsummary import summary
 from Vgg import VGG as model
-from sklearn.cluster import KMeans
-from random import randrange
 from torch.utils.tensorboard import SummaryWriter
 from k_mean import KMeans as L2_norm_Kmeans
 from gradientDataSet import CIFAR10 as gradientSet
 from ptflops import get_model_complexity_info
 
-batch_size = 1024
+batch_size = 200
 input_size = 32
-fineTurningEpoch = range(20)
-VGG_Layer_Number = 13
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # Data preparation
 transform = transforms.Compose(
@@ -51,16 +44,18 @@ classes = trainset.classes
 
 # Netword preparation
 
-VGG16 = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
-vgg_cfg_pruning = VGG16
+VGG16 = [64, 64, 128, 128, 256, 256, 256, 512, 512, 512, 512, 512, 512]
+
+vgg_cfg_pruning = [64, 64, 128, 128, 256, 256, 256, 512, 512, 512, 512, 512, 512]
+
+pruning_index = [1,3,5,6,8,9,10,11,12]
+
 net = model(vgg_name="VGG16")
-new_net = model(vgg_name="VGG16",vgg_cfg_pruning=vgg_cfg_pruning,last_layer=vgg_cfg_pruning[-2])
+new_net = model(vgg_name="VGG16")
 new_net.to(device)
 net.to(device)
 net.load_state_dict(torch.load("weight/acc93.52%_VGG.pth"))
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 activation = None
 def compare_models(model_1, model_2):
     models_differ = 0
@@ -82,14 +77,11 @@ def compare_models(model_1, model_2):
 
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-# device = torch.device("cpu")
 
 best_acc = 0
 
-# get gradient
 
-# training
-def validation(epoch,network,file_name="VGG.pth",save=True):
+def validation(network,file_name="VGG.pth",save=True,dir_name="weight"):
     
     # loop over the dataset multiple times
     total = 0
@@ -115,13 +107,13 @@ def validation(epoch,network,file_name="VGG.pth",save=True):
             if accuracy > best_acc:
                 best_acc = accuracy
                 if (save):
-                    PATH = os.path.join(os.getcwd(),"weight")
+                    PATH = os.path.join(os.getcwd(),dir_name)
                     if not os.path.isdir(PATH):
                         os.mkdir(PATH)
                     PATH = os.path.join(PATH,"acc"+str(accuracy)+"%_"+file_name)
                     torch.save(network.state_dict(), PATH)
                     print("Save: Acc "+str(best_acc))
-def train(epoch,network,optimizer,loader):
+def train(network,loader):
     # loop over the dataset multiple times
     running_loss = 0.0
     total = 0
@@ -136,13 +128,11 @@ def train(epoch,network,optimizer,loader):
             inputs, labels = inputs.to(device), labels.to(device)
 
             # zero the parameter gradients
-            # optimizer.zero_grad()
 
             # forward + backward + optimize
             outputs = network(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
-            # optimizer.step()
 
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
@@ -154,21 +144,38 @@ def train(epoch,network,optimizer,loader):
             pbar.update()
             pbar.set_description_str("Loss: {:.3f} | Acc: {:.3f} {}/{}".format(running_loss/(i+1),accuracy,correct,total))
 
-# fineTurningSetUp()
+# Hook feature map
 def VGG16PruningSetUp():
     global activation
-    
-    for m in net.features:
+    global net
+    feature_map = []
+
+    index = 0
+    for m in net.modules():
 
         def forward_hook(model, input, output):
-            activation.append(output.detach())
-        
-        m.register_forward_hook(forward_hook)
+            feature_map.append(output.detach())
+
+        if (isinstance(m,nn.Conv2d)):
+            if (VGG16[index] == VGG16[index-1]):
+                #only hook the layer which is input == output
+                m.register_forward_hook(forward_hook)
+            index+=1
+    
+    train(net,gradient_loader)
+    temp_activation_map = [[] for _ in range((len(feature_map)//10)+1)] 
+    
+    for index,activation_map in enumerate(feature_map):
+
+        temp_activation_map[(index+1) % len(pruning_index)].append(activation_map)
+    temp_activation_map[0], temp_activation_map[-1] = temp_activation_map[-1], temp_activation_map[0]
+    temp_activation_map.pop(0)
+    for index in range(len(temp_activation_map)):
+        activation.append(torch.cat(temp_activation_map[index],dim=0))
 # Start pruning
 
 def VGG16Pruning():
-    # backward gradient
-    # Choose test images
+
 
     def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None):
         
@@ -208,154 +215,124 @@ def VGG16Pruning():
     last_pruning_index = []
     out_channel = []
     pruning_index = []
-    finish = False
+    index = 0
+    convIdx = 0
 
-    for index,m in enumerate(net.features,0):
-        if isinstance(m, nn.Conv2d):
-            
-            out_channel = new_net.features[index].weight.data.shape[0]
-            remove_filter = m.weight.data.shape[0] - out_channel
-            num_filter = m.weight.data.size()[0]
-            n_clusters = int((1/10)*num_filter)
-            m_weight_vector = m.weight.data.reshape(num_filter,-1).cpu()
-            labels,centers = L2_norm_Kmeans(m_weight_vector,n_clusters,n_clusters)
-            # kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
-            # centers = kmeans.cluster_centers_
-            # labels = kmeans.labels_
-            group = [[] for _ in range(n_clusters)] 
-            for idx in range(num_filter):
-                group[labels[idx]].append(idx)
-            lock_group_index = []
-            copy_group = copy.deepcopy(group)
-            for filter_index_group in copy_group:
-                if len(filter_index_group) == 1:
-                    group.remove(filter_index_group)
-            
+    for old,new in zip(net.modules(),new_net.modules()):
+        if isinstance(old, nn.Conv2d):
+            if (VGG16[index] == VGG16[index-1]):
+                out_channel = vgg_cfg_pruning[index]
+                remove_filter = old.weight.data.shape[0] - out_channel
+                num_filter = old.weight.data.size()[0]
+                n_clusters = int((1/10)*num_filter)
+                m_weight_vector = old.weight.data.reshape(num_filter,-1).cpu()
+                labels,centers = L2_norm_Kmeans(m_weight_vector,n_clusters,n_clusters)
+ 
+                group = [[] for _ in range(n_clusters)] 
+                for idx in range(num_filter):
+                    group[labels[idx]].append(idx)
+                lock_group_index = []
+                copy_group = copy.deepcopy(group)
+                for filter_index_group in copy_group:
+                    if len(filter_index_group) == 1:
+                        group.remove(filter_index_group)
+                
 
-            # The reminding item in group can be pruned by some crition
-            pruning_index_group = []
-            pruning_left_index_group = [[] for _ in range(len(group))] 
-            total_left_filter = sum(len(filter_index_group) for filter_index_group in group)
-            percentage_group = [int(100*(len(filter_index_group)/total_left_filter)) for filter_index_group in group]
-            pruning_amount_group = [int(remove_filter*(percentage/100)) for percentage in percentage_group]
-            feature_map = torch.mean(activation[index],dim=(0,2,3))
-            for x in range(feature_map.size(0)):
-                m.weight.grad[x,:,:,:]*=feature_map[x]
-            criteria_for_layer = m.weight.grad / (torch.linalg.norm(m.weight.grad) + 1e-8)
-            importance = torch.sum(criteria_for_layer,dim=(1,2,3))
-            for counter,filter_index_group in enumerate(group,0):
-                filetr_index_group_temp = copy.deepcopy(filter_index_group)
-                    
-                # importance = torch.sum(m.weight.grad,dim=(0,2,3))
-                # importance = torch.sum(torch.abs(m.weight.data[filter_index_group]), dim=(1, 2, 3))
-                sorted_importance, sorted_idx = torch.sort(importance[filter_index_group], dim=0, descending=True)
-                filetr_index_group_temp = [filetr_index_group_temp[index] for index in list(sorted_idx)]
-                for sub_index in sorted_idx[len(sorted_idx)-pruning_amount_group[counter]:]:
-                    if len(filetr_index_group_temp) == 1:
-                        continue
-                    pruning_index_group.append(filetr_index_group_temp.pop(filetr_index_group_temp.index(filter_index_group[sub_index])))
-                for left_index in filetr_index_group_temp:
-                    pruning_left_index_group[counter].append(left_index)
-            # first one is the least important weight and the last one is the most important weight
+                # The reminding item in group can be pruned by some crition
+                pruning_index_group = []
+                pruning_left_index_group = [[] for _ in range(len(group))] 
+                total_left_filter = sum(len(filter_index_group) for filter_index_group in group)
+                percentage_group = [int(100*(len(filter_index_group)/total_left_filter)) for filter_index_group in group]
+                pruning_amount_group = [int(remove_filter*(percentage/100)) for percentage in percentage_group]
+                feature_map = torch.mean(activation[convIdx],dim=(0,2,3))
+                for x in range(feature_map.size(0)):
+                    old.weight.grad[x,:,:,:]*=feature_map[x]
+                old.weight.grad = torch.abs(old.weight.grad)
+                criteria_for_layer = old.weight.grad / (torch.linalg.norm(old.weight.grad) + 1e-8)
+                importance = torch.sum(criteria_for_layer,dim=(0,2,3))
+                for counter,filter_index_group in enumerate(group,0):
+                    filetr_index_group_temp = copy.deepcopy(filter_index_group)
+
+                    sorted_importance, sorted_idx = torch.sort(importance[filter_index_group], dim=0, descending=True)
+                    filetr_index_group_temp = [filetr_index_group_temp[index] for index in list(sorted_idx)]
+                    for sub_index in sorted_idx[len(sorted_idx)-pruning_amount_group[counter]:]:
+                        if len(filetr_index_group_temp) == 1:
+                            continue
+                        pruning_index_group.append(filetr_index_group_temp.pop(filetr_index_group_temp.index(filter_index_group[sub_index])))
+                    for left_index in filetr_index_group_temp:
+                        pruning_left_index_group[counter].append(left_index)
+                # first one is the least important weight and the last one is the most important weight
 
 
-            while (len(pruning_index_group) < remove_filter):
-                pruning_amount = len(pruning_index_group)
-                for left_index in pruning_left_index_group:
-                    if (len(left_index) <= 1):
-                        continue
-                    if (len(pruning_index_group) >= remove_filter):
-                        break
-                    pruning_index_group.append(left_index.pop(0))
-                if (pruning_amount >= len(pruning_index_group)):
-                    raise ValueError('infinity loop')
-                    
-            pruning_index = torch.tensor(pruning_index_group).to(device)
-            new_net.features[index].weight.data,new_net.features[index].bias.data = remove_filter_by_index(m.weight.data, pruning_index,bias=m.bias.data)
-            new_net.features[index].weight.data = remove_kernel_by_index(new_net.features[index].weight.data,last_pruning_index)
-        
-        if isinstance(m, nn.BatchNorm2d):
-            new_net.features[index].weight.data,new_net.features[index].bias.data,new_net.features[index].running_mean.data,new_net.features[index].running_var.data = remove_filter_by_index(m.weight.data, pruning_index,bias=m.bias.data,mean=m.running_mean.data,var=m.running_var.data)
+                while (len(pruning_index_group) < remove_filter):
+                    pruning_amount = len(pruning_index_group)
+                    for left_index in pruning_left_index_group:
+                        if (len(left_index) <= 1):
+                            continue
+                        if (len(pruning_index_group) >= remove_filter):
+                            break
+                        pruning_index_group.append(left_index.pop(0))
+                    if (pruning_amount >= len(pruning_index_group)):
+                        raise ValueError('infinity loop')
+                        
+                pruning_index = torch.tensor(pruning_index_group).to(device)
+                convIdx+=1
+            else:
+                pruning_index = []
+            new.weight.data,new.bias.data = remove_filter_by_index(old.weight.data, pruning_index,bias=old.bias.data)
+            new.weight.data = remove_kernel_by_index(new.weight.data,last_pruning_index)
+            index+=1
+        if isinstance(old, nn.BatchNorm2d):
+            new.weight.data,new.bias.data,new.running_mean.data,new.running_var.data = remove_filter_by_index(old.weight.data, pruning_index,bias=old.bias.data,mean=old.running_mean.data,var=old.running_var.data)
             last_pruning_index = pruning_index
     
-    for index,layer in enumerate(net.classifier,0):
-        if isinstance(layer, nn.Linear):
-            if not finish:
-                in_channels = new_net.classifier[index].weight.data.shape[1]
-                new_net.classifier[index].weight.data =  remove_kernel_by_index(layer.weight.data,last_pruning_index)
-                new_net.classifier[index].bias.data =  layer.bias.data.clone()
-                finish = True
-            if finish:
-                new_net.classifier[index].weight.data = layer.weight.data.clone()
-                new_net.classifier[index].bias.data =  layer.bias.data.clone()
+        if isinstance(old,nn.Linear):
+            new.weight.data = remove_kernel_by_index(old.weight.data,last_pruning_index,classifier=True)
+            new.bias.data = old.bias.data.clone()
+            last_pruning_index = []
     print("After: ")
-    validation(0,network=new_net,file_name="VGG_Prune.pth",save=False)
+    validation(network=new_net,save=False)
 
-def UpdateNet(index,precentage):
+def UpdateNet(precentage):
     global new_net
-    global optimizer
-    global scheduler
     global net
     global activation
-    if VGG16[index] == "M":
-        index+=1
-    new_VGG16 = []
-    for idx in range(len(VGG16)):
-        if VGG16[idx] == "M":
-            new_VGG16.append("M")
-            continue
-        if not (precentage < 0.00001):
-            new_VGG16.append(round((precentage)*VGG16[idx]))
-        else:
-            new_VGG16.append(1)
-    new_VGG16[-2]=512
+    global vgg_cfg_pruning
+    vgg_cfg_pruning = copy.deepcopy(VGG16)
+    
+    for idx in range(len(vgg_cfg_pruning)):
+        
+        if (VGG16[idx] == VGG16[idx-1]):
+            if not (precentage < 0.00001):
+                vgg_cfg_pruning[idx] = (round((precentage)*vgg_cfg_pruning[idx]))
+            else:
+                vgg_cfg_pruning[idx] = 1
 
-        # if idx == index:
-        #     if not (precentage < 0.00001):
-        #         new_VGG16.append(round((precentage)*VGG16[idx]))
-        #     else:
-        #         new_VGG16.append(1)
-        # else:
-        #     new_VGG16.append(VGG16[idx])
-    # print("Layer # :",index,"from ",VGG16[index],"to",new_VGG16[index])
     print("Pruning Rate:",str((1-precentage)*100))
-    new_net = model(vgg_name="VGG16",vgg_cfg_pruning=new_VGG16,last_layer=new_VGG16[-2])
+    new_net = model(vgg_name="VGG16")
     net = model(vgg_name="VGG16")
     net.to(device)
     net.load_state_dict(torch.load("weight/acc93.52%_VGG.pth"))
-    optimizer = optim.SGD(new_net.parameters(), lr=0.01, momentum=0.9,weight_decay=5e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+
     activation = []
     
     VGG16PruningSetUp()
-    train(0, net, optimizer,gradient_loader)
 
 precentage = 0
-writer = SummaryWriter("VGG-data/VGG-K-Mean-Gradient-L2norm")
+# writer = SummaryWriter("VGG-Data/VGG-K-Mean-Gradient")
 for idx in range(11):
     
     
-    UpdateNet(idx, 1-precentage)
+    UpdateNet(1-precentage)
     
     VGG16Pruning()
-    macs, params = get_model_complexity_info(new_net, (3, 32, 32), as_strings=True,
-                                    print_per_layer_stat=False, verbose=True)
-    writer.add_scalar('ACC', best_acc, (precentage)*100)
-    writer.add_scalar('Params(M)', float(params.split(" ")[0]), (precentage)*100)
-    writer.add_scalar('MACs(G)', float(macs.split(" ")[0]), (precentage)*100)
+    # macs, params = get_model_complexity_info(new_net, (3, 32, 32), as_strings=True,
+    #                                 print_per_layer_stat=False, verbose=True)
+    # writer.add_scalar('ACC', best_acc, (precentage)*100)
+    # writer.add_scalar('Params(M)', float(params.split(" ")[0]), (precentage)*100)
+    # writer.add_scalar('MACs(G)', float(macs.split(" ")[0]), (precentage)*100)
     precentage += 0.1 
 
     best_acc = 0
-    writer.close()
-# for idx in range(VGG_Layer_Number):
-#     writer = SummaryWriter("VGG-K-Mean/L1norm/layers"+str(idx))
-#     precentage = 0
-#     UpdateNet(idx, 1-precentage)
-#     for _ in range(10):
-#         VGG16Pruning()
-#         writer.add_scalar('VGG-K-Mean-L1norm', best_acc, (precentage)*100)
-#         precentage += 0.1 
-#         UpdateNet(idx, (1-precentage))
-#         best_acc = 0
-#     writer.close()
-    
+    # writer.close()
+

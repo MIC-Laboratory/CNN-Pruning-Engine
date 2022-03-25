@@ -94,7 +94,7 @@ class CIFAR10(VisionDataset):
         images = []
         labels = []
         for index,label in enumerate(self.targets):
-            if len(classes[label])>= 100:
+            if len(classes[label])>= 200:
                 continue
             classes[label].append(index)
         for class_list in classes:

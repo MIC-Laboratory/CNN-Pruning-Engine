@@ -4,8 +4,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 from torchvision import transforms
-from torchvision import models
 from tqdm import tqdm
+from torchvision import models
+
 from torchsummary import summary
 from mobilenetv2 import MobileNetV2 as model
 from torch.utils.tensorboard import SummaryWriter
@@ -87,7 +88,7 @@ def validation(epoch,network,file_name="VGG.pth"):
                 accuracy = 100 * correct / total
                 pbar.update()
                 pbar.set_description_str("Acc: {:.3f} {}/{}".format(accuracy,correct,total))
-            if accuracy > best_acc:
+            if False and accuracy > best_acc:
                 best_acc = accuracy
                 PATH = os.path.join(os.getcwd(),"weight")
                 if not os.path.isdir(PATH):
