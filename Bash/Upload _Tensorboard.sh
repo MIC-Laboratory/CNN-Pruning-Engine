@@ -1,0 +1,1 @@
+tensorboard dev upload --logdir Experiment_data
