@@ -22,16 +22,10 @@ from ptflops import get_model_complexity_info
 from sklearn.cluster import KMeans
 
 
-parser = argparse.ArgumentParser(description=
-"""
-This is training file. Training Resnet18, MobileNetV2 and VGG16 in Cifar10
-argument: [models] [weight_path] [dataset]
-ORDER MATTERS
-"""
-)
+parser = argparse.ArgumentParser(description="")
 parser.add_argument('--weight_path', type=str)
 parser.add_argument('--dataset', type=str,help="dataset: Cifar10,Cifar100,Imagenet")
-parser.add_argument('--dataset_path', type=str)
+parser.add_argument('--dataset_path', type=str,help="Imagenet dataset path")
 parser.add_argument('--pruning_mode', type=str,help="mode: Layerwise,Fullayer")
 parser.add_argument('--pruning_method', type=str,help="method: L1norm,Taylor,K-L1norm,K-Taylor")
 args = parser.parse_args()
@@ -511,9 +505,6 @@ def ResnetPruning(pruning_block):
                     new.running_var = new.running_var.clone()
                 if isinstance(new,gate):
                     new.weight.data = new.weight.data
-
-        
-    
     print("Finish Pruning: ")
     
 
