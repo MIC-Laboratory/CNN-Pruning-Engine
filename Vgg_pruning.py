@@ -21,13 +21,7 @@ from sklearn.cluster import KMeans
 from gap_statistic import OptimalK
 from sklearn.cluster import SpectralClustering as SpectralKMeans
 
-parser = argparse.ArgumentParser(description=
-"""
-This is training file. Training Resnet18, MobileNetV2 and VGG16 in Cifar10
-argument: [models] [weight_path] [dataset]
-ORDER MATTERS
-"""
-)
+parser = argparse.ArgumentParser(description="")
 parser.add_argument('--weight_path', type=str)
 parser.add_argument('--dataset', type=str,help="dataset: Cifar10,Cifar100,Imagenet")
 parser.add_argument('--dataset_path', type=str)

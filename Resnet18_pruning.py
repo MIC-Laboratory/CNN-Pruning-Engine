@@ -20,14 +20,16 @@ from Dataloader.Gradient_data_set_cifar import taylor_cifar10,taylor_cifar100
 from Dataloader.Gradient_data_set_imagenet import taylor_imagenet
 from ptflops import get_model_complexity_info
 from sklearn.cluster import KMeans
+import numpy as np
 
 
 parser = argparse.ArgumentParser(description="")
 parser.add_argument('--weight_path', type=str)
 parser.add_argument('--dataset', type=str,help="dataset: Cifar10,Cifar100,Imagenet")
-parser.add_argument('--dataset_path', type=str,help="Imagenet dataset path")
+parser.add_argument('--dataset_path', type=str,help="Imagenet dataset path or Cifar10/Cifar100 datasetPath")
 parser.add_argument('--pruning_mode', type=str,help="mode: Layerwise,Fullayer")
-parser.add_argument('--pruning_method', type=str,help="method: L1norm,Taylor,K-L1norm,K-Taylor")
+parser.add_argument('--pruning_method', type=str,help="method: L1norm,Taylor,K-L1norm,K-Taylor,K-Distance")
+parser.add_argument('--calculate_k', type=str,help="options: Imagenet_K,Own_K ")
 args = parser.parse_args()
 print("==> Setting up hyper-parameters...")
 batch_size = 128
@@ -53,7 +55,7 @@ elif args.dataset == "Imagenet":
     input_size = 224
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 dataset_path = args.dataset_path
-log_path = f"Experiment_data/{args.dataset}/{args.pruning_method}/resnet18/{args.pruning_mode}"
+log_path = f"Experiment_data/ResNet18/{args.calculate_k}/{args.dataset}/{args.pruning_method}/resnet18/{args.pruning_mode}"
 train_transform = transforms.Compose(
     [
     transforms.CenterCrop(input_size),
@@ -101,10 +103,10 @@ classes = len(train_set.classes)
 # Netword preparation
 
 
-block_channel_origin = [64,64,128,128,256,256,512,512]
-block_channel_pruning = [64,64,128,128,256,256,512,512]
+block_channel_origin = [64,64,64,128,128,256,256,512,512]
+block_channel_pruning = [64,64,64,128,128,256,256,512,512]
 
-pruning_rate = [0,0,0,0,0,0,0,0]
+pruning_rate = [0,0,0,0,0,0,0,0,0]
 
 if args.dataset == "Imagenet":
     tool_net = resnet18(pretrained=True)
@@ -404,12 +406,31 @@ def K_Taylor(index):
                 return Kmean(tool.weight.data,index,sort_index)
             conv_idx+=1
             valve = False
+def distance(weight,index):
+    n_clusters = calculate_K(index)
+    num_filter = weight.data.size()[0]
+    m_weight_vector = weight.reshape(num_filter, -1).cpu()
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
+    distance_set = kmeans.fit_transform(m_weight_vector)
 
+    num_filter_list = [i for i in range(num_filter)]
+    distance = distance_set[num_filter_list,kmeans.labels_]
+    unique, index,counts = np.unique(kmeans.labels_, return_counts=True,return_index=True)
+    lock_group = index[counts==1]
+    distance[lock_group] = 1e10
+    distance = torch.from_numpy(distance)
+    sorted_importance, sorted_idx = torch.sort(distance, dim=0, descending=True)
+    
+    return sorted_idx
+def K_Distance(weight,index):
+    
+    return distance(weight,index)
 
 def ResnetPruning(pruning_block):
-    sorted_idx = None
-    valve = False
-    index = -1
+    sorted_idx = []
+    last_sorted_idx = []
+    valve = True
+    index = 0
     skip_batch_norm = False
     shortcut_time = False
     convIndex = 0
@@ -432,46 +453,65 @@ def ResnetPruning(pruning_block):
             if isinstance(old,Gate):
                 new.weight.data = old.weight.data.clone()
         else:
-            if index != pruning_block:
-                valve = False
             
+            if abs(index - pruning_block) > 1:
+                valve = False
             if isinstance(new, block):
-                sorted_idx = None
+                sorted_idx = []
                 valve = True
                 index+=1
-                sorted_idx = None
                 shortcut_time = False
-
+                conv_temp_index = 0
+            if isinstance(new, nn.Linear):
+                if pruning_block == 8:
+                    new.weight.data = remove_kernel_by_index(new.weight.data.clone(),last_sorted_idx,linear=True)
+                    new.in_features -= len(last_sorted_idx)
+                else:
+                    new.weight.data = new.weight.data.clone()
+                new.bias.data = new.bias.data.clone()
+                break
             if valve and not shortcut_time:
                 if isinstance(new, nn.Conv2d):
-                    if sorted_idx == None:
-                        
-                        out_channels = block_channel_pruning[index]
-                        if args.pruning_method == "L1norm":
-                            sorted_idx = L1norm(new.weight.data.clone())
-                            sorted_idx = sorted_idx[out_channels:]
-                        elif args.pruning_method == "Taylor":
-                            sorted_idx = Taylor(pruning_block)
-                            sorted_idx = sorted_idx[out_channels:]
-                        elif args.pruning_method == "K-Taylor":
-                            sorted_idx = K_Taylor(pruning_block)
-                        elif args.pruning_method == "K-L1norm":
-                            sorted_idx = K_L1norm(new.weight.data.clone(),pruning_block)
-
-                        new.weight.data = remove_filter_by_index(
-                            new.weight.data.clone(), sorted_idx)
-                        new.out_channels -= len(sorted_idx)
-                        convIndex+=1
-                        conv_temp_index+=1
-                        gate_valve = True
-                    elif conv_temp_index % 2 == 1:
-                        
-                        new.weight.data = remove_kernel_by_index(new.weight.data.clone(), sorted_idx)
-                        new.in_channels -= len(sorted_idx)
-                        conv_temp_index+=1
-                        skip_batch_norm = True
                     
-                        
+                    if index - pruning_block == 1 and conv_temp_index == 0:
+                        new.weight.data = remove_kernel_by_index(new.weight.data.clone(),last_sorted_idx)
+                        new.in_channels -= len(last_sorted_idx)
+                        if pruning_block == 0:
+                            valve = False
+                    if index == pruning_block:
+                        if len(sorted_idx) == 0:
+                            
+                            out_channels = block_channel_pruning[index]
+                            if args.pruning_method == "L1norm":
+                                sorted_idx = L1norm(new.weight.data.clone())
+                                sorted_idx = sorted_idx[out_channels:]
+                            elif args.pruning_method == "Taylor":
+                                sorted_idx = Taylor(pruning_block)
+                                sorted_idx = sorted_idx[out_channels:]
+                            elif args.pruning_method == "K-Taylor":
+                                sorted_idx = K_Taylor(pruning_block)
+                            elif args.pruning_method == "K-L1norm":
+                                sorted_idx = K_L1norm(new.weight.data.clone(),pruning_block)
+                            elif args.pruning_method == "K-Distance":
+                                sorted_idx = K_Distance(new.weight.data.clone(),pruning_block)
+                                sorted_idx = sorted_idx[out_channels:]
+                            new.weight.data = remove_filter_by_index(
+                                new.weight.data.clone(), sorted_idx)
+                            new.out_channels -= len(sorted_idx)
+                            convIndex+=1
+                            
+                            gate_valve = True
+                            last_sorted_idx = sorted_idx
+                        elif conv_temp_index % 2 == 1:
+                            
+                            new.weight.data = remove_kernel_by_index(new.weight.data.clone(), sorted_idx)
+                            new.weight.data = remove_filter_by_index(new.weight.data.clone(),sorted_idx)
+                            new.in_channels -= len(sorted_idx)
+                            new.out_channels -= len(sorted_idx)
+                            
+                    if (pruning_block != 0):
+                        conv_temp_index+=1
+                    
                 if isinstance(new, nn.BatchNorm2d):
                     if (not skip_batch_norm):
                         new.weight.data,new.bias.data,new.running_mean,new.running_var = remove_filter_by_index(new.weight.data.clone(), sorted_idx,bias=new.bias.data.clone(),mean=new.running_mean.data.clone(),var=new.running_var.data.clone())
@@ -482,20 +522,33 @@ def ResnetPruning(pruning_block):
                         new.running_mean = new.running_mean.clone()
                         new.running_var = new.running_var.clone()
                     skip_batch_norm = False
-                    if conv_temp_index % 2 == 0:
+                    if conv_temp_index % 2 == 0 and pruning_block != 0:
                         shortcut_time = True
-                if isinstance(new,gate):
-                    if (gate_valve):
-                        new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx,gate=True)
-                        gate_valve = False
-                        new.output_features -= len(sorted_idx)
-                    else:
-                        new.weight.data = new.weight.data.clone()
+                # if isinstance(new,gate):
+                #     if (gate_valve):
+                #         new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx,gate=True)
+                #         gate_valve = False
+                #         new.output_features -= len(sorted_idx)
+                #     else:
+                #         new.weight.data = new.weight.data.clone()
 
+            elif shortcut_time:
+                if index - pruning_block == 1:
+                    if isinstance(new, nn.Conv2d):
+                        new.weight.data = remove_kernel_by_index(new.weight.data.clone(), last_sorted_idx)
+                        new.in_channels -= len(last_sorted_idx)
+                    if isinstance(new, nn.BatchNorm2d):
+                        shortcut_time = False
+                elif index == pruning_block:
+                    if isinstance(new, nn.Conv2d):
+                        new.weight.data = remove_filter_by_index(new.weight.data.clone(),sorted_idx)
+                        new.out_channels -= len(sorted_idx)
+                    if isinstance(new, nn.BatchNorm2d):
+                        new.weight.data,new.bias.data,new.running_mean,new.running_var = remove_filter_by_index(new.weight.data.clone(), sorted_idx,bias=new.bias.data.clone(),mean=new.running_mean.data.clone(),var=new.running_var.data.clone())
+                        new.num_features -= len(sorted_idx)
+                        shortcut_time = False
             else:                     
-                if isinstance(new, nn.Linear):
-                    new.weight.data = new.weight.data.clone()
-                    new.bias.data = new.bias.data.clone()
+                
                 if isinstance(new, nn.Conv2d):
                     new.weight.data = new.weight.data.clone()
                 if isinstance(new, nn.BatchNorm2d):
@@ -503,8 +556,8 @@ def ResnetPruning(pruning_block):
                     new.bias.data = new.bias.data.clone()
                     new.running_mean = new.running_mean.clone()
                     new.running_var = new.running_var.clone()
-                if isinstance(new,gate):
-                    new.weight.data = new.weight.data
+                # if isinstance(new,gate):
+                #     new.weight.data = new.weight.data
     print("Finish Pruning: ")
     
 
@@ -533,26 +586,29 @@ def weight_reload():
 def full_layer_pruning():
     percentage = 0
     global best_acc
-    writer = SummaryWriter(log_dir=log_path)
+    # writer = SummaryWriter(log_dir=log_path)
     for idx in range(6):
         best_acc = 0
         weight_reload()
         for element in range(len(pruning_rate)):
             pruning_rate[element] = percentage
-        for index in range(len(pruning_rate)): 
+        # for index in range(len(pruning_rate)): 
+        #     UpdateNet(index,1-pruning_rate[index],reload=False)
+        #     ResnetPruning(index)
+        for index in range(1): 
             UpdateNet(index,1-pruning_rate[index],reload=False)
             ResnetPruning(index)
         
         validation(new_net,test_loader,args.weight_path+f"/full_layer_pruned_{str(100*round(percentage,1))}%",save=False)
         
-        with torch.cuda.device(0):
-            macs, params = get_model_complexity_info(new_net, (3, input_size, input_size), as_strings=False,
-                                                print_per_layer_stat=False, verbose=True)
+        # with torch.cuda.device(0):
+        #     macs, params = get_model_complexity_info(new_net, (3, input_size, input_size), as_strings=False,
+        #                                         print_per_layer_stat=False, verbose=True)
 
-            writer.add_scalar('ACC', best_acc, round((percentage),1)*100)
-            writer.add_scalar('Params(M)', round(params/1e6,2), round((percentage),1)*100)
-            writer.add_scalar('MACs(M)', round(macs/1e6,2), round((percentage),1)*100)
-            writer.close()
+        #     writer.add_scalar('ACC', best_acc, round((percentage),1)*100)
+        #     writer.add_scalar('Params(M)', round(params/1e6,2), round((percentage),1)*100)
+        #     writer.add_scalar('MACs(M)', round(macs/1e6,2), round((percentage),1)*100)
+        #     writer.close()
         percentage += 0.1
 def layerwise_pruning():
     global best_acc
@@ -596,9 +652,9 @@ def bruth_force_calculate_k():
                 K+=1
             percentage+=0.1
     writer.close()
-# if args.pruning_mode == "Layerwise":
-#     layerwise_pruning()
-# elif args.pruning_mode == "Fullayer":
-#     full_layer_pruning()
+if args.pruning_mode == "Layerwise":
+    layerwise_pruning()
+elif args.pruning_mode == "Fullayer":
+    full_layer_pruning()
 
-bruth_force_calculate_k()
+# bruth_force_calculate_k()
