@@ -1,7 +1,7 @@
 # TODO  
 ## K_Selection:
 - [x] VGG16 K_Selection 
-- [x] ResNet K_Selection
+- [x] ResNet18 K_Selection
 - [ ] MobilenetV2 K_Selection
 
 ## VGG16 Pruning
@@ -35,6 +35,6 @@
   - [ ] Imagenet 
 
 ## OneForAll Pruning
- - [ ] Mobilenet on ImageNet
- - [ ] RestNet on ImageNet
- - [ ] VGG16 on ImageNet
+ - [ ] Mobilenet on ImageNet and Cifar100
+ - [ ] RestNet on ImageNet and Cifar100
+ - [ ] VGG16 on ImageNet and Cifar100
