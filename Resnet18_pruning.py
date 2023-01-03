@@ -466,6 +466,7 @@ def ResnetPruning(pruning_block):
     global new_net
     global block_channel_pruning
     if pruning_block == 0:
+        return
         sorted_idx = get_sorted_idx(new_net.conv1.weight.data.clone(),pruning_block)
         new_net.conv1.weight.data = remove_filter_by_index(new_net.conv1.weight.data.clone(), sorted_idx)
         new_net.layer1[0].conv1.weight.data = remove_kernel_by_index(new_net.layer1[0].conv1.weight.data.clone(), sorted_idx)
@@ -476,105 +477,65 @@ def ResnetPruning(pruning_block):
 
     elif pruning_block == 1:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer1[0].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer1[0].conv2.weight.data.clone(),pruning_block)
         new_net.layer1[0].conv1.weight.data = remove_filter_by_index(new_net.layer1[0].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer1[1].conv1.weight.data = remove_kernel_by_index(new_net.layer1[1].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer1[0].conv2,sorted_idx_layer2)
+        new_net.layer1[0].conv2.weight.data = remove_kernel_by_index(new_net.layer1[0].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer1[0].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer1[0].bn2,sorted_idx_layer2)
         new_net.layer1[0].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer1[1].conv1.in_channels -= len(sorted_idx_layer2)
+        new_net.layer1[0].conv2.in_channels -= len(sorted_idx_layer1)
         
     elif pruning_block == 2:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer1[1].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer1[1].conv2.weight.data.clone(),pruning_block)
         new_net.layer1[1].conv1.weight.data = remove_filter_by_index(new_net.layer1[1].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer2[0].conv1.weight.data = remove_kernel_by_index(new_net.layer2[0].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer1[1].conv2,sorted_idx_layer2)
+        new_net.layer1[1].conv2.weight.data = remove_kernel_by_index(new_net.layer1[1].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer1[1].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer1[1].bn2,sorted_idx_layer2)
-        new_net.layer2[0].shortcut[0].weight.data = remove_kernel_by_index(new_net.layer2[0].shortcut[0].weight.data.clone(), sorted_idx_layer2)
-        new_net.layer2[0].shortcut[0].in_channels -= len(sorted_idx_layer2)
-        
         new_net.layer1[1].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer2[0].conv1.in_channels -= len(sorted_idx_layer2)
+        new_net.layer1[1].conv2.in_channels -= len(sorted_idx_layer1)
+
     elif pruning_block == 3:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer2[0].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer2[0].conv2.weight.data.clone(),pruning_block)
         new_net.layer2[0].conv1.weight.data = remove_filter_by_index(new_net.layer2[0].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer2[1].conv1.weight.data = remove_kernel_by_index(new_net.layer2[1].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer2[0].conv2,sorted_idx_layer2)
+        new_net.layer2[0].conv2.weight.data = remove_kernel_by_index(new_net.layer2[0].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer2[0].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer2[0].bn2,sorted_idx_layer2)
         new_net.layer2[0].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer2[1].conv1.in_channels -= len(sorted_idx_layer2)
-        new_net.layer2[0].shortcut[0].weight.data = remove_filter_by_index(new_net.layer2[0].shortcut[0].weight.data.clone(), sorted_idx_layer2)
-        new_net.layer2[0].shortcut[0].out_channels -= len(sorted_idx_layer2)
-        remove_Bn(new_net.layer2[0].shortcut[1],sorted_idx_layer2)
+        new_net.layer2[0].conv2.in_channels -= len(sorted_idx_layer1)
+        
     elif pruning_block == 4:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer2[1].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer2[1].conv2.weight.data.clone(),pruning_block)
         new_net.layer2[1].conv1.weight.data = remove_filter_by_index(new_net.layer2[1].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer3[0].conv1.weight.data = remove_kernel_by_index(new_net.layer3[0].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer2[1].conv2,sorted_idx_layer2)
+        new_net.layer2[1].conv2.weight.data = remove_kernel_by_index(new_net.layer2[1].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer2[1].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer2[1].bn2,sorted_idx_layer2)
-        new_net.layer3[0].shortcut[0].weight.data = remove_kernel_by_index(new_net.layer3[0].shortcut[0].weight.data.clone(), sorted_idx_layer2)
-        new_net.layer3[0].shortcut[0].in_channels -= len(sorted_idx_layer2)
-        
         new_net.layer2[1].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer3[0].conv1.in_channels -= len(sorted_idx_layer2)
+        new_net.layer2[1].conv2.in_channels -= len(sorted_idx_layer1)
 
     elif pruning_block == 5:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer3[0].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer3[0].conv2.weight.data.clone(),pruning_block)
         new_net.layer3[0].conv1.weight.data = remove_filter_by_index(new_net.layer3[0].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer3[1].conv1.weight.data = remove_kernel_by_index(new_net.layer3[1].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer3[0].conv2,sorted_idx_layer2)
+        new_net.layer3[0].conv2.weight.data = remove_kernel_by_index(new_net.layer3[0].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer3[0].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer3[0].bn2,sorted_idx_layer2)
         new_net.layer3[0].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer3[1].conv1.in_channels -= len(sorted_idx_layer2)
-        new_net.layer3[0].shortcut[0].weight.data = remove_filter_by_index(new_net.layer3[0].shortcut[0].weight.data.clone(), sorted_idx_layer2)
-        new_net.layer3[0].shortcut[0].out_channels -= len(sorted_idx_layer2)
-        remove_Bn(new_net.layer3[0].shortcut[1],sorted_idx_layer2)
+        new_net.layer3[0].conv2.in_channels -= len(sorted_idx_layer1)
     elif pruning_block == 6:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer3[1].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer3[1].conv2.weight.data.clone(),pruning_block)
         new_net.layer3[1].conv1.weight.data = remove_filter_by_index(new_net.layer3[1].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer4[0].conv1.weight.data = remove_kernel_by_index(new_net.layer4[0].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer3[1].conv2,sorted_idx_layer2)
+        new_net.layer3[1].conv2.weight.data = remove_kernel_by_index(new_net.layer3[1].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer3[1].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer3[1].bn2,sorted_idx_layer2)
-        new_net.layer4[0].shortcut[0].weight.data = remove_kernel_by_index(new_net.layer4[0].shortcut[0].weight.data.clone(), sorted_idx_layer2)
-        new_net.layer4[0].shortcut[0].in_channels -= len(sorted_idx_layer2)
-        
         new_net.layer3[1].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer4[0].conv1.in_channels -= len(sorted_idx_layer2)
+        new_net.layer3[1].conv2.in_channels -= len(sorted_idx_layer1)
+
     elif pruning_block == 7:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer4[0].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer4[0].conv2.weight.data.clone(),pruning_block)
         new_net.layer4[0].conv1.weight.data = remove_filter_by_index(new_net.layer4[0].conv1.weight.data.clone(), sorted_idx_layer1)
-        new_net.layer4[1].conv1.weight.data = remove_kernel_by_index(new_net.layer4[1].conv1.weight.data.clone(), sorted_idx_layer2)
-        remove_conv_filter_kernel(new_net.layer4[0].conv2,sorted_idx_layer2)
+        new_net.layer4[0].conv2.weight.data = remove_kernel_by_index(new_net.layer4[0].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer4[0].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer4[0].bn2,sorted_idx_layer2)
         new_net.layer4[0].conv1.out_channels -= len(sorted_idx_layer1)
-        new_net.layer4[1].conv1.in_channels -= len(sorted_idx_layer2)
-        new_net.layer4[0].shortcut[0].weight.data = remove_filter_by_index(new_net.layer4[0].shortcut[0].weight.data.clone(), sorted_idx_layer2)
-        new_net.layer4[0].shortcut[0].out_channels -= len(sorted_idx_layer2)
+        new_net.layer4[0].conv2.in_channels -= len(sorted_idx_layer1)
         
         
     elif pruning_block == 8:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer4[1].conv1.weight.data.clone(),pruning_block)
-        sorted_idx_layer2 = get_sorted_idx(new_net.layer4[1].conv2.weight.data.clone(),pruning_block)
         new_net.layer4[1].conv1.weight.data = remove_filter_by_index(new_net.layer4[1].conv1.weight.data.clone(), sorted_idx_layer1)
-        remove_conv_filter_kernel(new_net.layer4[1].conv2,sorted_idx_layer2)
+        new_net.layer4[1].conv2.weight.data = remove_kernel_by_index(new_net.layer4[1].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer4[1].bn1,sorted_idx_layer1)
-        remove_Bn(new_net.layer4[1].bn2,sorted_idx_layer2)
-        new_net.linear.weight.data = new_net.linear.weight.data = remove_kernel_by_index(new_net.linear.weight.data.clone(),sorted_idx_layer2,linear=True)
-        new_net.linear.in_features -= len(sorted_idx_layer2)
-        new_net.layer4[1].conv1.out_channels -= len(sorted_idx_layer1)
     print("Finish Pruning: ")
     
 
