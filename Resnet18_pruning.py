@@ -103,10 +103,10 @@ classes = len(train_set.classes)
 # Netword preparation
 
 
-block_channel_origin = [64,64,64,128,128,256,256,512,512]
+block_channel_origin = [64,64,128,128,256,256,512,512]
 block_channel_pruning = [64,64,64,128,128,256,256,512,512]
 
-pruning_rate = [0,0,0,0,0,0,0,0,0]
+pruning_rate = [0,0,0,0,0,0,0,0]
 
 if args.dataset == "Imagenet":
     tool_net = resnet18(pretrained=True)
@@ -126,7 +126,8 @@ best_acc = 0
 mask_number = 1e+10
 mean_feature_map = ["" for _ in range(len(block_channel_origin))]
 mean_gradient = ["" for _ in range(len(block_channel_origin))]
-k_mean_number = ["" for _ in range(len(block_channel_origin))]
+k_mean_number = [25,25,46,14,108,104,108,99]
+# k_mean_number = ["" for _ in range(len(block_channel_origin))]
 K = 1
 def compare_models(model_1, model_2):
     models_differ = 0
@@ -326,6 +327,7 @@ def Taylor(index):
             valve = False
 
 def calculate_K(index): 
+    # return k_mean_number[index]
     return K
 def Kmean(weight,index,sort_index):
     out_channel = block_channel_pruning[index]
@@ -466,16 +468,6 @@ def ResnetPruning(pruning_block):
     global new_net
     global block_channel_pruning
     if pruning_block == 0:
-        return
-        sorted_idx = get_sorted_idx(new_net.conv1.weight.data.clone(),pruning_block)
-        new_net.conv1.weight.data = remove_filter_by_index(new_net.conv1.weight.data.clone(), sorted_idx)
-        new_net.layer1[0].conv1.weight.data = remove_kernel_by_index(new_net.layer1[0].conv1.weight.data.clone(), sorted_idx)
-        remove_Bn(new_net.bn1,sorted_idx)
-        new_net.conv1.out_channels -= len(sorted_idx)
-        new_net.bn1.num_features -= len(sorted_idx)
-        new_net.layer1[0].conv1.in_channels -= len(sorted_idx)
-
-    elif pruning_block == 1:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer1[0].conv1.weight.data.clone(),pruning_block)
         new_net.layer1[0].conv1.weight.data = remove_filter_by_index(new_net.layer1[0].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer1[0].conv2.weight.data = remove_kernel_by_index(new_net.layer1[0].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -483,7 +475,7 @@ def ResnetPruning(pruning_block):
         new_net.layer1[0].conv1.out_channels -= len(sorted_idx_layer1)
         new_net.layer1[0].conv2.in_channels -= len(sorted_idx_layer1)
         
-    elif pruning_block == 2:
+    elif pruning_block == 1:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer1[1].conv1.weight.data.clone(),pruning_block)
         new_net.layer1[1].conv1.weight.data = remove_filter_by_index(new_net.layer1[1].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer1[1].conv2.weight.data = remove_kernel_by_index(new_net.layer1[1].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -491,7 +483,7 @@ def ResnetPruning(pruning_block):
         new_net.layer1[1].conv1.out_channels -= len(sorted_idx_layer1)
         new_net.layer1[1].conv2.in_channels -= len(sorted_idx_layer1)
 
-    elif pruning_block == 3:
+    elif pruning_block == 2:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer2[0].conv1.weight.data.clone(),pruning_block)
         new_net.layer2[0].conv1.weight.data = remove_filter_by_index(new_net.layer2[0].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer2[0].conv2.weight.data = remove_kernel_by_index(new_net.layer2[0].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -499,7 +491,7 @@ def ResnetPruning(pruning_block):
         new_net.layer2[0].conv1.out_channels -= len(sorted_idx_layer1)
         new_net.layer2[0].conv2.in_channels -= len(sorted_idx_layer1)
         
-    elif pruning_block == 4:
+    elif pruning_block == 3:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer2[1].conv1.weight.data.clone(),pruning_block)
         new_net.layer2[1].conv1.weight.data = remove_filter_by_index(new_net.layer2[1].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer2[1].conv2.weight.data = remove_kernel_by_index(new_net.layer2[1].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -507,14 +499,14 @@ def ResnetPruning(pruning_block):
         new_net.layer2[1].conv1.out_channels -= len(sorted_idx_layer1)
         new_net.layer2[1].conv2.in_channels -= len(sorted_idx_layer1)
 
-    elif pruning_block == 5:
+    elif pruning_block == 4:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer3[0].conv1.weight.data.clone(),pruning_block)
         new_net.layer3[0].conv1.weight.data = remove_filter_by_index(new_net.layer3[0].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer3[0].conv2.weight.data = remove_kernel_by_index(new_net.layer3[0].conv2.weight.data.clone(), sorted_idx_layer1)
         remove_Bn(new_net.layer3[0].bn1,sorted_idx_layer1)
         new_net.layer3[0].conv1.out_channels -= len(sorted_idx_layer1)
         new_net.layer3[0].conv2.in_channels -= len(sorted_idx_layer1)
-    elif pruning_block == 6:
+    elif pruning_block == 5:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer3[1].conv1.weight.data.clone(),pruning_block)
         new_net.layer3[1].conv1.weight.data = remove_filter_by_index(new_net.layer3[1].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer3[1].conv2.weight.data = remove_kernel_by_index(new_net.layer3[1].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -522,7 +514,7 @@ def ResnetPruning(pruning_block):
         new_net.layer3[1].conv1.out_channels -= len(sorted_idx_layer1)
         new_net.layer3[1].conv2.in_channels -= len(sorted_idx_layer1)
 
-    elif pruning_block == 7:
+    elif pruning_block == 6:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer4[0].conv1.weight.data.clone(),pruning_block)
         new_net.layer4[0].conv1.weight.data = remove_filter_by_index(new_net.layer4[0].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer4[0].conv2.weight.data = remove_kernel_by_index(new_net.layer4[0].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -531,7 +523,7 @@ def ResnetPruning(pruning_block):
         new_net.layer4[0].conv2.in_channels -= len(sorted_idx_layer1)
         
         
-    elif pruning_block == 8:
+    elif pruning_block == 7:
         sorted_idx_layer1 = get_sorted_idx(new_net.layer4[1].conv1.weight.data.clone(),pruning_block)
         new_net.layer4[1].conv1.weight.data = remove_filter_by_index(new_net.layer4[1].conv1.weight.data.clone(), sorted_idx_layer1)
         new_net.layer4[1].conv2.weight.data = remove_kernel_by_index(new_net.layer4[1].conv2.weight.data.clone(), sorted_idx_layer1)
@@ -564,7 +556,7 @@ def weight_reload():
 def full_layer_pruning():
     percentage = 0
     global best_acc
-    # writer = SummaryWriter(log_dir=log_path)
+    writer = SummaryWriter(log_dir=log_path)
     for idx in range(6):
         best_acc = 0
         weight_reload()
@@ -576,14 +568,14 @@ def full_layer_pruning():
         
         validation(new_net,test_loader,args.weight_path+f"/full_layer_pruned_{str(100*round(percentage,1))}%",save=False)
         
-        # with torch.cuda.device(0):
-        #     macs, params = get_model_complexity_info(new_net, (3, input_size, input_size), as_strings=False,
-        #                                         print_per_layer_stat=False, verbose=True)
+        with torch.cuda.device(0):
+            macs, params = get_model_complexity_info(new_net, (3, input_size, input_size), as_strings=False,
+                                                print_per_layer_stat=False, verbose=True)
 
-        #     writer.add_scalar('ACC', best_acc, round((percentage),1)*100)
-        #     writer.add_scalar('Params(M)', round(params/1e6,2), round((percentage),1)*100)
-        #     writer.add_scalar('MACs(M)', round(macs/1e6,2), round((percentage),1)*100)
-        #     writer.close()
+            writer.add_scalar('ACC', best_acc, round((percentage),1)*100)
+            writer.add_scalar('Params(M)', round(params/1e6,2), round((percentage),1)*100)
+            writer.add_scalar('MACs(M)', round(macs/1e6,2), round((percentage),1)*100)
+            writer.close()
         percentage += 0.1
 def layerwise_pruning():
     global best_acc
@@ -618,7 +610,7 @@ def bruth_force_calculate_k():
             K=1
             for _ in range(int((1/2)*block_channel_origin[layer])):
                 best_acc = 0
-                writer = SummaryWriter(log_dir=log_path+f"/block{layer}/pruning{round((pruning_rate[layer]),1)*100}%")
+                writer = SummaryWriter(log_dir=log_path+f"/K_Selection/block{layer}/pruning{round((pruning_rate[layer]),1)*100}%")
                 pruning_rate[layer] = percentage
                 UpdateNet(layer,1-pruning_rate[layer])
                 ResnetPruning(layer)
@@ -627,9 +619,9 @@ def bruth_force_calculate_k():
                 K+=1
             percentage+=0.1
     writer.close()
-if args.pruning_mode == "Layerwise":
-    layerwise_pruning()
-elif args.pruning_mode == "Fullayer":
-    full_layer_pruning()
+# if args.pruning_mode == "Layerwise":
+#     layerwise_pruning()
+# elif args.pruning_mode == "Fullayer":
+#     full_layer_pruning()
 
-# bruth_force_calculate_k()
+bruth_force_calculate_k()

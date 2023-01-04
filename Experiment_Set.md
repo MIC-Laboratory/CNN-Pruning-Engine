@@ -16,9 +16,9 @@
 
 ## ResNet Pruning
 ### Full Layer Pruning
-  - [ ] Cifar10 
-  - [ ] Cifar 100 
-  - [ ] Imagenet 
+  - [x] Cifar10 
+  - [x] Cifar 100 
+  - [x] Imagenet 
 ### LayerWise Pruning
   - [ ] Cifar10 
   - [ ] Cifar 100 
