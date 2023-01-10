@@ -126,7 +126,12 @@ best_acc = 0
 mask_number = 1e+10
 mean_feature_map = ["" for _ in range(len(block_channel_origin))]
 mean_gradient = ["" for _ in range(len(block_channel_origin))]
-k_mean_number = [25,25,46,14,108,104,108,99]
+if args.calculate_k == "Imagenet_K":
+    k_mean_number = [25,25,46,14,108,104,108,99]
+elif args.calculate_k == "Cifar10_K":
+    k_mean_number = [30,30,36,31,21,32,83,66]
+elif args.calculate_k == "Cifar100_K":
+    k_mean_number = [21,21,62,6,104,98,223,113]
 # k_mean_number = ["" for _ in range(len(block_channel_origin))]
 K = 1
 def compare_models(model_1, model_2):
@@ -327,8 +332,8 @@ def Taylor(index):
             valve = False
 
 def calculate_K(index): 
-    # return k_mean_number[index]
-    return K
+    return k_mean_number[index]
+    # return K
 def Kmean(weight,index,sort_index):
     out_channel = block_channel_pruning[index]
     remove_filter = weight.shape[0] - out_channel
@@ -619,9 +624,9 @@ def bruth_force_calculate_k():
                 K+=1
             percentage+=0.1
     writer.close()
-# if args.pruning_mode == "Layerwise":
-#     layerwise_pruning()
-# elif args.pruning_mode == "Fullayer":
-#     full_layer_pruning()
+if args.pruning_mode == "Layerwise":
+    layerwise_pruning()
+elif args.pruning_mode == "Fullayer":
+    full_layer_pruning()
 
-bruth_force_calculate_k()
+# bruth_force_calculate_k()
