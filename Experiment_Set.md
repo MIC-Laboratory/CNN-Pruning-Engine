@@ -34,6 +34,54 @@
   - [ ] Cifar 100 
   - [ ] Imagenet 
 
+## NASNet-A Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## DARTS Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## MnasNet Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## FBNet-C Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## ProxylessNAS Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## SinglePathNAS Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## AutoSlim Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
+## MobileNetV3-Large Pruning
+### Full Layer Pruning
+  - [ ] Imagenet 
+### LayerWise Pruning
+  - [ ] Imagenet 
+
 ## OneForAll Pruning
  - [ ] Mobilenet on ImageNet and Cifar100
  - [ ] RestNet on ImageNet and Cifar100

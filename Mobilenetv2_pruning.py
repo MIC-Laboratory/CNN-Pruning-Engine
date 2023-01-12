@@ -6,14 +6,14 @@ import copy
 import os
 import argparse
 import gc
+import time
+import numpy as np
 from torchvision import transforms
 from tqdm import tqdm
 from Models.Mobilenetv2 import MobileNetV2 as cifar_mobilenet
-
-from Models.Mobilenetv2 import Block as block
-from Models.Mobilenetv2 import GateLayer as Gate
 from torchvision.models import mobilenet_v2 as imagenet_mobilenet
 from torchvision.models.mobilenetv2 import InvertedResidual as imagenet_mobilenet_block
+from Models.Mobilenetv2 import Block as cifar_mobilenet_block
 from torch.utils.tensorboard import SummaryWriter
 from Dataloader.Gradient_data_set_cifar import taylor_cifar10,taylor_cifar100
 from Dataloader.Gradient_data_set_imagenet import taylor_imagenet
@@ -21,18 +21,14 @@ from ptflops import get_model_complexity_info
 from sklearn.cluster import KMeans
 
 
-parser = argparse.ArgumentParser(description=
-"""
-This is training file. Training Resnet18, MobileNetV2 and VGG16 in Cifar10
-argument: [models] [weight_path] [dataset]
-ORDER MATTERS
-"""
-)
+parser = argparse.ArgumentParser(description="")
 parser.add_argument('--weight_path', type=str)
 parser.add_argument('--dataset', type=str,help="dataset: Cifar10,Cifar100,Imagenet")
-parser.add_argument('--dataset_path', type=str)
+parser.add_argument('--dataset_path', type=str,help="Imagenet dataset path or Cifar10/Cifar100 datasetPath")
 parser.add_argument('--pruning_mode', type=str,help="mode: Layerwise,Fullayer")
-parser.add_argument('--pruning_method', type=str,help="method: L1norm,Taylor,K-L1norm,K-Taylor")
+parser.add_argument('--pruning_method', type=str,help="method: L1norm,Taylor,K-L1norm,K-Taylor,K-Distance")
+parser.add_argument('--calculate_k', type=str,help="options: Imagenet_K,Own_K ")
+
 args = parser.parse_args()
 print("==> Setting up hyper-parameters...")
 batch_size = 128
@@ -58,7 +54,7 @@ elif args.dataset == "Imagenet":
     input_size = 224
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 dataset_path = args.dataset_path
-log_path = f"Experiment_data/{args.dataset}/{args.pruning_method}/mobilenetv2/{args.pruning_mode}"
+log_path = f"Experiment_data/MobilenetV2/{args.calculate_k}/{args.dataset}/{args.pruning_method}/MobilenetV2/{args.pruning_mode}"
 train_transform = transforms.Compose(
     [
     transforms.RandomCrop(input_size),
@@ -108,11 +104,13 @@ pruning_rate = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 if args.dataset == "Imagenet":
     tool_net = imagenet_mobilenet(pretrained=True)
     new_net = imagenet_mobilenet(pretrained=True)
+    block = imagenet_mobilenet_block
 else:
     tool_net = cifar_mobilenet(num_classes=classes)
     new_net = cifar_mobilenet(num_classes=classes)
     tool_net.load_state_dict(torch.load(weight_path))
     new_net.load_state_dict(torch.load(weight_path))
+    block = cifar_mobilenet_block
 tool_net.to(device)
 new_net.to(device)
 
@@ -122,6 +120,16 @@ best_acc = 0
 mask_number = 1e10
 mean_feature_map = ["" for _ in range(len(block_channel_origin))]
 mean_gradient = ["" for _ in range(len(block_channel_origin))]
+
+"""
+if args.calculate_k == "Imagenet_K":
+    k_mean_number = [25,25,46,14,108,104,108,99]
+elif args.calculate_k == "Cifar10_K":
+    k_mean_number = [30,30,36,31,21,32,83,66]
+elif args.calculate_k == "Cifar100_K":
+    k_mean_number = [21,21,62,6,104,98,223,113]
+"""
+K = 1
 def compare_models(model_1, model_2):
     models_differ = 0
     for key_item_1, key_item_2 in zip(model_1.state_dict().items(), model_2.state_dict().items()):
@@ -137,41 +145,19 @@ def compare_models(model_1, model_2):
         print('Models match perfectly! :)')
 
 
-def train(epoch,network,optimizer,dataloader,limited_image = None):
-    # loop over the dataset multiple times
-    running_loss = 0.0
-    total = 0
-    correct = 0
+def train(network,optimizer,dataloader_iter):
+    
     
     network.train()
-    with tqdm(total=len(dataloader)) as pbar:
-        for i, data in enumerate(dataloader, 0):
-            if (limited_image is not None) and (i != limited_image):
-                continue
-            inputs, labels = data
-            inputs, labels = inputs.to(device), labels.to(device)
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs = network(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            _, predicted = torch.max(outputs, 1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
-            running_loss += loss.item()            
-            
-            
-            accuracy = 100 * correct / total
-            pbar.update()
-            pbar.set_description_str("Epoch: {} | Acc: {:.3f} {}/{} | Loss: {:.3f}".format(epoch,accuracy,correct,total,running_loss/(i+1)))
-            if (limited_image is not None):
-                break
+    inputs, labels = next(dataloader_iter)
+    inputs, labels = inputs.to(device), labels.to(device)
+    optimizer.zero_grad()
+    outputs = network(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
     
 
-def validation(network,dataloader,file_name,save=True):
+def validation(network,dataloader,file_name,save=True,calculate_k = False):
     
     # loop over the dataset multiple times
     global best_acc
@@ -180,13 +166,14 @@ def validation(network,dataloader,file_name,save=True):
     total = 0
     correct = 0
     network.eval()
+    copy_network = copy.deepcopy(network)
+        
     with tqdm(total=len(dataloader)) as pbar:
         with torch.no_grad():
             for i, data in enumerate(dataloader, 0):
                 inputs, labels = data
                 inputs, labels = inputs.to(device), labels.to(device)
-
-
+                
                 # forward + backward + optimize
                 outputs = network(inputs)
                 loss = criterion(outputs, labels)
@@ -207,6 +194,7 @@ def validation(network,dataloader,file_name,save=True):
                     print("Save: Acc "+str(best_acc))
                 else:
                     print("Best: Acc "+str(best_acc))
+    
     return running_loss/len(dataloader),accuracy
 
 
@@ -235,7 +223,6 @@ def remove_filter_by_index(weight,sorted_idx,bias=None,mean=None,var=None,gate=F
             for idx in sorted_idx:
                 weight[idx.item()] = mask_tensor
             nonMaskRows_weight = abs(torch.abs(weight).sum(dim=(1,2,3)) - torch.abs(mask_tensor).sum(dim=(0,1,2))) > mask_number
-            
             weight = weight[nonMaskRows_weight]
             return weight
 def remove_kernel_by_index(weight,sorted_idx,linear=None):
@@ -258,16 +245,22 @@ def Taylor_add_gradient():
     global mean_feature_map
     global mean_gradient
     feature_map_layer = 0
+    taylor_loader_iter = iter(taylor_loader)
     gradient_layer = len(block_channel_pruning)-1
     def forward_hook(model, input, output):
         nonlocal feature_map_layer
-        padding = add_gradient_image_size*classes - output.detach().size(0)
         if (feature_map_layer >= len(block_channel_pruning)):
             feature_map_layer = 0
         if mean_feature_map[feature_map_layer] == "":
-            mean_feature_map[feature_map_layer] = torch.mean(torch.cat((output.detach(),torch.zeros(padding,output.detach().size(1),output.detach().size(2),output.detach().size(3),device=device)),0),dim=(0))
+            if len(taylor_loader) > 1:
+                mean_feature_map[feature_map_layer] = torch.sum(output.detach(),dim=(0))/(add_gradient_image_size*classes)
+            else:
+                mean_feature_map[feature_map_layer] = output.detach()/(add_gradient_image_size*classes)
         else:
-            mean_feature_map[feature_map_layer] = torch.add(mean_feature_map[feature_map_layer],torch.mean(output.detach(),dim=(0)))
+            if len(taylor_loader) > 1:
+                mean_feature_map[feature_map_layer] = torch.add(mean_feature_map[feature_map_layer],torch.sum(output.detach(),dim=(0))/(add_gradient_image_size*classes))
+            else:
+                mean_feature_map[feature_map_layer] = torch.add(mean_feature_map[feature_map_layer],output.detach()/(add_gradient_image_size*classes))
         feature_map_layer+=1
     def backward_hook(model,input,output):
         if not hasattr(output, "requires_grad") or not output.requires_grad:
@@ -275,40 +268,56 @@ def Taylor_add_gradient():
             return
         def _store_grad(grad):
             nonlocal gradient_layer
-            padding = add_gradient_image_size*classes - grad.detach().size(0)
             if (gradient_layer < 0):
                 gradient_layer = len(block_channel_pruning)-1
             if mean_gradient[gradient_layer] == '':
-                mean_gradient[gradient_layer] = torch.mean(torch.cat((grad.detach(),torch.zeros(padding,grad.detach().size(1),grad.detach().size(2),grad.detach().size(3),device=device)),0),dim=(0))
+                if len(taylor_loader) > 1:
+                    mean_gradient[gradient_layer] = torch.sum(grad.detach(),dim=(0))/(add_gradient_image_size*classes)
+                else:
+                    mean_gradient[gradient_layer] = grad.detach()/(add_gradient_image_size*classes)
             else:
-                mean_gradient[gradient_layer] = torch.add(mean_gradient[gradient_layer],torch.mean(grad.detach(),dim=(0)))
+                if len(taylor_loader) > 1:
+                    mean_gradient[gradient_layer] = torch.add(mean_gradient[gradient_layer],torch.sum(grad.detach(),dim=(0))/(add_gradient_image_size*classes))
+                else:
+                    mean_gradient[gradient_layer] = torch.add(mean_gradient[gradient_layer],grad.detach()/(add_gradient_image_size*classes))
             gradient_layer-=1
         output.register_hook(_store_grad)
     valve = False
+    if args.dataset == "Imagenet":
+        for i in range(1,len(block_channel_origin)):
+            tool_net.layers[i].conv2.register_forward_hook(forward_hook)
+            tool_net.layers[i].conv2.register_forward_hook(backward_hook)
     for m in tool_net.modules():
-        if args.dataset == "Imagenet":
-            if (isinstance(m,imagenet_mobilenet_block)):
-                valve = True
-        else:
-            if (isinstance(m,block)):
-                valve = True
+        
+        if (isinstance(m,block)):
+            valve = True
         if (isinstance(m,nn.Conv2d)) and valve:
             m.register_forward_hook(forward_hook)
             m.register_forward_hook(backward_hook)
             valve = False
-    for _ in range(len(taylor_loader)):
-        gc.collect()
-        train(0,tool_net,optimizer,taylor_loader,limited_image=_)
+    with tqdm(total=len(taylor_loader)) as pbar:
+        
+        for _ in range(len(taylor_loader)):
+            start = time.time()
+            train(tool_net,optimizer,taylor_loader_iter)
+            gc.collect()
+            pbar.update()
+            pbar.set_description_str(f"training time: {time.time()-start}")
 
 def Taylor(index):
     conv_idx = 0
-    valve = False
-    tool_net.load_state_dict(torch.load(weight_path))
+    if args.dataset == "Imagenet":
+        tool_net = imagenet_mobilenet(pretrained=True)
+        
+    else:
+        tool_net = cifar_mobilenet(num_classes=classes)
+        tool_net.load_state_dict(torch.load(weight_path))
+    tool_net.to(device)
     if index == 0:
         Taylor_add_gradient()
-
+    valve = False
     for i, tool in enumerate(tool_net.modules()):
-        if (isinstance(tool,block)):
+        if isinstance(tool,block):
             valve = True
         if isinstance(tool, nn.Conv2d) and valve:
             if (index == conv_idx):
@@ -319,17 +328,21 @@ def Taylor(index):
                 importance = torch.sum(criteria_for_layer,dim=(1,2))
                 sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
                 return sorted_idx
-            valve = False
             conv_idx+=1
-
-def K_L1norm(weight,index):
+            valve = False
+def calculate_K(index): 
+    # return k_mean_number[index]
+    return K
+def Kmean(weight,index,sort_index):
     out_channel = block_channel_pruning[index]
     remove_filter = weight.shape[0] - out_channel
     num_filter = weight.data.size()[0]
-    n_clusters = int((1/10)*num_filter)
+
+    
+    n_clusters = calculate_K(index)
     m_weight_vector = weight.reshape(num_filter, -1).cpu()
     kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
-    centers = kmeans.cluster_centers_
+    print("K:",n_clusters)
     labels = kmeans.labels_
     group = [[] for _ in range(n_clusters)]
     for idx in range(num_filter):
@@ -349,11 +362,7 @@ def K_L1norm(weight,index):
         100*(len(filter_index_group)/total_left_filter)) for filter_index_group in group]
     pruning_amount_group = [
         int(remove_filter*(percentage/100)) for percentage in percentage_group]
-    importance = torch.sum(
-        torch.abs(weight), dim=(1, 2, 3))
-    importance_1 = importance
-    sorted_importance, sorted_idx_origin = torch.sort(
-            importance_1, dim=0, descending=True)
+    sorted_idx_origin = sort_index
     for counter, filter_index_group in enumerate(group, 0):
         temp = copy.deepcopy(filter_index_group)
         temp.sort(key=lambda e: (list(sorted_idx_origin).index(e),e) if e in list(sorted_idx_origin)  else (len(list(sorted_idx_origin)),e))
@@ -380,6 +389,9 @@ def K_L1norm(weight,index):
             raise ValueError('infinity loop')
 
     return torch.tensor(pruning_index_group).to(device)
+def K_L1norm(weight,index):
+    sort_index = L1norm(weight)
+    return Kmean(weight,index,sort_index)
 
 def K_Taylor(index):
     block_idx = -1
@@ -391,260 +403,116 @@ def K_Taylor(index):
         tool_net = cifar_mobilenet(num_classes=classes)
         tool_net.load_state_dict(torch.load(weight_path))
     tool_net.to(device)
-    if index == 0:
-        Taylor_add_gradient()
-
+    tool_net.to(device)
+    sort_index = Taylor(index)
+    
+    valve = False
     for i, tool in enumerate(tool_net.modules()):
         if isinstance(tool,block):
-            block_idx+=1
             valve = True
         if isinstance(tool, nn.Conv2d) and valve:
-            if (index == block_idx):
-                out_channel = block_channel_pruning[index]
-
-                remove_filter = tool.weight.data.shape[0] - out_channel
-                num_filter = tool.weight.data.size()[0]
-                n_clusters = int((1/10)*num_filter)
-                m_weight_vector = tool.weight.data.reshape(num_filter,-1).cpu()
-                kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
-                centers = kmeans.cluster_centers_
-                labels = kmeans.labels_
-
-                group = [[] for _ in range(n_clusters)] 
-                for idx in range(num_filter):
-                    group[labels[idx]].append(idx)
-                lock_group_index = []
-                copy_group = copy.deepcopy(group)
-                for filter_index_group in copy_group:
-                    if len(filter_index_group) == 1:
-                        group.remove(filter_index_group)
-                
-
-                # The reminding item in group can be pruned by some crition
-                pruning_index_group = []
-                pruning_left_index_group = [[] for _ in range(len(group))] 
-                total_left_filter = sum(len(filter_index_group) for filter_index_group in group)
-                percentage_group = [int(100*(len(filter_index_group)/total_left_filter)) for filter_index_group in group]
-                pruning_amount_group = [int(remove_filter*(percentage/100)) for percentage in percentage_group]
-                cam_grad = mean_gradient[index]*mean_feature_map[index]
-                cam_grad = torch.abs(cam_grad)
-                criteria_for_layer = cam_grad / (torch.linalg.norm(cam_grad) + 1e-8)
-                importance = torch.sum(criteria_for_layer,dim=(1,2))
-                importance_1 = importance
-                sorted_importance, sorted_idx_origin = torch.sort(
-                        importance_1, dim=0, descending=True)
-                for counter,filter_index_group in enumerate(group,0):
-                    temp = copy.deepcopy(filter_index_group)
-                    temp.sort(key=lambda e: (list(sorted_idx_origin).index(e),e) if e in list(sorted_idx_origin)  else (len(list(sorted_idx_origin)),e))
-                    sorted_idx = torch.tensor(temp,device=device)
-                    filetr_index_group_temp = copy.deepcopy(list(sorted_idx))
-                    
-                    for sub_index in sorted_idx[len(sorted_idx)-pruning_amount_group[counter]:]:
-                        if len(filetr_index_group_temp) == 1:
-                            continue
-                        pruning_index_group.append(filetr_index_group_temp.pop(filetr_index_group_temp.index(sub_index)))
-                    for left_index in filetr_index_group_temp:
-                        pruning_left_index_group[counter].append(left_index)
-                # first one is the least important weight and the last one is the most important weight
-
-
-                while (len(pruning_index_group) < remove_filter):
-                    pruning_amount = len(pruning_index_group)
-                    for left_index in pruning_left_index_group:
-                        if (len(left_index) <= 1):
-                            continue
-                        if (len(pruning_index_group) >= remove_filter):
-                            break
-                        pruning_index_group.append(left_index.pop(-1))
-                    if (pruning_amount >= len(pruning_index_group)):
-                        raise ValueError('infinity loop')
-                return torch.tensor(pruning_index_group).to(device)
-            
+            if (index == conv_idx):
+                return Kmean(tool.weight.data,index,sort_index)
+            conv_idx+=1
             valve = False
-def MobilenetV2Pruning_Imagenet(pruning_block):
-    sorted_idx = None
-    valve = False
-    index = -1
-    skip_batch_norm = False
-    convIndex = 0
-    global new_net
-    for new in new_net.modules():
-        if False:
-            if isinstance(old, nn.Conv2d):
-                new.weight.data = old.weight.data.clone()
-            if isinstance(old, nn.BatchNorm2d):
-                new.weight.data = old.weight.data.clone()
-                new.bias.data = old.bias.data.clone()
-                new.running_mean = old.running_mean.clone()
-                new.running_var = old.running_var.clone()
-            if isinstance(old, nn.Linear):
-                new.weight.data = old.weight.data.clone()
-                new.bias.data = old.bias.data.clone()
-            if isinstance(old,Gate):
-                new.weight.data = old.weight.data.clone()
-        else:
-            if index != pruning_block:
-                valve = False
-            if isinstance(new, imagenet_mobilenet_block):
-                valve = True
-                index+=1
-                sorted_idx = None
-            if valve:
-                if isinstance(new, nn.Conv2d):
-                    
-                    if new.kernel_size == (1,1) and sorted_idx == None:
+def distance(weight,index):
+    n_clusters = calculate_K(index)
+    num_filter = weight.data.size()[0]
+    m_weight_vector = weight.reshape(num_filter, -1).cpu()
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
+    distance_set = kmeans.fit_transform(m_weight_vector)
 
-                        out_channels = block_channel_pruning[index]
-                        if args.pruning_method == "L1norm":
-                            sorted_idx = L1norm(new.weight.data.clone())
-                            sorted_idx = sorted_idx[out_channels:]
-                        elif args.pruning_method == "Taylor":
-                            sorted_idx = Taylor(pruning_block)
-                            sorted_idx = sorted_idx[out_channels:]
-                        elif args.pruning_method == "K-Taylor":
-                            sorted_idx = K_Taylor(pruning_block)
-                        elif args.pruning_method == "K-L1norm":
-                            sorted_idx = K_L1norm(new.weight.data.clone(),pruning_block)
-                        
-                        new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx)
-                        new.out_channels -= len(sorted_idx)
-                        convIndex+=1
-                    elif new.kernel_size != (1,1):
-                        
-                        new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx)
-                        new.groups = block_channel_pruning[index]
-                        new.out_channels -= len(sorted_idx)
-                    elif new.out_channels == 1280:
-                        new.weight.data = new.weight.data.clone()
-                        skip_batch_norm = True
-                    elif index != 0:
-                        new.weight.data = remove_kernel_by_index(new.weight.data.clone(), sorted_idx)
-                        new.in_channels -= len(sorted_idx)
-                        skip_batch_norm = True
-                    
-                if isinstance(new, nn.BatchNorm2d):
-                    if (not skip_batch_norm):
-                        new.weight.data,new.bias.data,new.running_mean,new.running_var = remove_filter_by_index(new.weight.data.clone(), sorted_idx,bias=new.bias.data,mean=new.running_mean,var=new.running_var)
-                        new.num_features -= len(sorted_idx)
-                    else:
-                        new.weight.data = new.weight.data.clone()
-                        new.bias.data = new.bias.data.clone()
-                        new.running_mean = new.running_mean.clone()
-                        new.running_var = new.running_var.clone()
-                    skip_batch_norm = False
-                
-                
-            else:
-                if isinstance(new, nn.Conv2d):
-                    new.weight.data = new.weight.data.clone()
-                if isinstance(new, nn.BatchNorm2d):
-                    new.weight.data = new.weight.data.clone()
-                    new.bias.data = new.bias.data.clone()
-                    new.running_mean = new.running_mean.clone()
-                    new.running_var = new.running_var.clone()                        
-                if isinstance(new, nn.Linear):
-                    new.weight.data = new.weight.data.clone()
-                    new.bias.data = new.bias.data.clone()
-
-
-        
+    num_filter_list = [i for i in range(num_filter)]
+    distance = distance_set[num_filter_list,kmeans.labels_]
+    unique, index,counts = np.unique(kmeans.labels_, return_counts=True,return_index=True)
+    lock_group = index[counts==1]
+    distance[lock_group] = 1e10
+    distance = torch.from_numpy(distance)
+    sorted_importance, sorted_idx = torch.sort(distance, dim=0, descending=True)
     
-    print("Finish Pruning: ")
+    return sorted_idx
+def K_Distance(weight,index):
+    
+    return distance(weight,index)
+def get_sorted_idx(weight,pruning_block):
+    out_channels = block_channel_pruning[pruning_block]
+    if args.pruning_method == "L1norm":
+        sorted_idx = L1norm(weight)
+        sorted_idx = sorted_idx[out_channels:]
+    elif args.pruning_method == "Taylor":
+        sorted_idx = Taylor(pruning_block)
+        sorted_idx = sorted_idx[out_channels:]
+    elif args.pruning_method == "K-Taylor":
+        sorted_idx = K_Taylor(pruning_block)
+    elif args.pruning_method == "K-L1norm":
+        sorted_idx = K_L1norm(weight,pruning_block)
+    elif args.pruning_method == "K-Distance":
+        sorted_idx = K_Distance(weight,pruning_block)
+        sorted_idx = sorted_idx[out_channels:]
+    return sorted_idx
+def remove_Bn(layer,sorted_idx):
+    layer.weight.data,\
+    layer.bias.data,\
+    layer.running_mean.data,\
+    layer.running_var.data = remove_filter_by_index(
+        layer.weight.data.clone(), 
+        sorted_idx,
+        bias=layer.bias.data.clone(),
+        mean=layer.running_mean.data.clone(),
+        var=layer.running_var.data.clone()
+        )
+    layer.num_features -= len(sorted_idx)
+def remove_conv_filter_kernel(layer,sorted_idx):
+    layer.weight.data = remove_filter_by_index(layer.weight.data.clone(), sorted_idx)
+    layer.weight.data = remove_kernel_by_index(layer.weight.data.clone(), sorted_idx)
+    layer.out_channels -= len(sorted_idx)
+    layer.in_channels -= len(sorted_idx)
+    layer.groups -= len(sorted_idx)
+def MobilenetV2Pruning_Imagenet(pruning_block):
+    global new_net
+    global block_channel_pruning
+
+    if pruning_block == 0:
+        pass
+    else:
+        pruning_sub_block = new_net.features[pruning_block+1]
+        sorted_idx = get_sorted_idx(pruning_sub_block.conv[1][0].weight.data.clone(),pruning_block)
+        pruning_sub_block.conv[0][0].weight.data = remove_filter_by_index(pruning_sub_block.conv[0][0].weight.data.clone(),sorted_idx)
+        pruning_sub_block.conv[1][0].weight.data = remove_filter_by_index(pruning_sub_block.conv[1][0].weight.data.clone(),sorted_idx)
+        pruning_sub_block.conv[2].weight.data = remove_kernel_by_index(pruning_sub_block.conv[2].weight.data.clone(),sorted_idx)
+        remove_Bn(pruning_sub_block.conv[1][1],sorted_idx)
+        remove_Bn(pruning_sub_block.conv[0][1],sorted_idx)
+        
+        pruning_sub_block.conv[0][0].out_channels -= len(sorted_idx)
+        pruning_sub_block.conv[1][0].out_channels -= len(sorted_idx)
+        pruning_sub_block.conv[1][0].in_channels -= len(sorted_idx)
+        pruning_sub_block.conv[1][0].groups -= len(sorted_idx)
+        pruning_sub_block.conv[2].in_channels -= len(sorted_idx)
+
 
 def MobilenetV2Pruning(pruning_block):
-    sorted_idx = None
-    valve = False
-    index = -1
-    skip_batch_norm = False
-    shortcut_time = False
-    convIndex = 0
     global new_net
-    for new in new_net.modules():
-        if False:
-            if isinstance(old, nn.Conv2d):
-                new.weight.data = old.weight.data.clone()
-            if isinstance(old, nn.BatchNorm2d):
-                new.weight.data = old.weight.data.clone()
-                new.bias.data = old.bias.data.clone()
-                new.running_mean = old.running_mean.clone()
-                new.running_var = old.running_var.clone()
-            if isinstance(old, nn.Linear):
-                new.weight.data = old.weight.data.clone()
-                new.bias.data = old.bias.data.clone()
-            if isinstance(old,Gate):
-                new.weight.data = old.weight.data.clone()
-        else:
-            if index != pruning_block:
-                valve = False
-            if isinstance(new, block):
-                valve = True
-                index+=1
-                sorted_idx = None
-                shortcut_time = False
-            if index >=0 and isinstance(new, nn.Sequential):
-                shortcut_time = True
-            if valve and not shortcut_time:
-                if isinstance(new, nn.Conv2d):
-                    
-                    if new.kernel_size == (1,1) and sorted_idx == None:
-                        out_channels = block_channel_pruning[index]
-                        if args.pruning_method == "L1norm":
-                            sorted_idx = L1norm(new.weight.data.clone())
-                            sorted_idx = sorted_idx[out_channels:]
-                        elif args.pruning_method == "Taylor":
-                            sorted_idx = Taylor(pruning_block)
-                            sorted_idx = sorted_idx[out_channels:]
-                        elif args.pruning_method == "K-Taylor":
-                            sorted_idx = K_Taylor(pruning_block)
-                        elif args.pruning_method == "K-L1norm":
-                            sorted_idx = K_L1norm(new.weight.data.clone(),pruning_block)
-                        
-                        new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx)
-                        new.out_channels -= len(sorted_idx)
-                        convIndex+=1
-                    elif new.kernel_size != (1,1):
-                        
-                        new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx)
-                        new.groups = block_channel_pruning[index]
-                        new.out_channels -= len(sorted_idx)
-                    else:
-                        new.weight.data = remove_kernel_by_index(new.weight.data.clone(), sorted_idx)
-                        new.in_channels -= len(sorted_idx)
-                        skip_batch_norm = True
-                if isinstance(new, nn.BatchNorm2d):
-                    if (not skip_batch_norm):
-                        new.weight.data,new.bias.data,new.running_mean,new.running_var = remove_filter_by_index(new.weight.data.clone(), sorted_idx,bias=new.bias.data,mean=new.running_mean,var=new.running_var)
-                        new.num_features -= len(sorted_idx)
-                    else:
-                        new.weight.data = new.weight.data.clone()
-                        new.bias.data = new.bias.data.clone()
-                        new.running_mean = new.running_mean.clone()
-                        new.running_var = new.running_var.clone()
-                    skip_batch_norm = False
-                if isinstance(new,Gate):
-                    new.weight.data = remove_filter_by_index(new.weight.data.clone(), sorted_idx,gate=True)
-                    new.output_features -= len(sorted_idx)
-                
-            else:
-                if isinstance(new, nn.Conv2d):
-                    new.weight.data = new.weight.data.clone()
-                if isinstance(new, nn.BatchNorm2d):
-                    new.weight.data = new.weight.data.clone()
-                    new.bias.data = new.bias.data.clone()
-                    new.running_mean = new.running_mean.clone()
-                    new.running_var = new.running_var.clone()                        
-                if isinstance(new, nn.Linear):
-                    new.weight.data = new.weight.data.clone()
-                    new.bias.data = new.bias.data.clone()
-                if isinstance(new,Gate):
-                    new.weight.data = new.weight.data.clone()
-
-        
+    global block_channel_pruning
+    layer = new_net.layers[pruning_block]
+    sorted_idx = get_sorted_idx(layer.conv2.weight.data.clone(),pruning_block)
+    layer.conv1.weight.data = remove_filter_by_index(layer.conv1.weight.data.clone(),sorted_idx)
+    layer.conv2.weight.data = remove_filter_by_index(layer.conv2.weight.data.clone(),sorted_idx)
+    
+    layer.conv3.weight.data = remove_kernel_by_index(layer.conv3.weight.data.clone(),sorted_idx)
+    remove_Bn(layer.bn1,sorted_idx)
+    remove_Bn(layer.bn2,sorted_idx)
+    
+    layer.conv1.out_channels -= len(sorted_idx)
+    layer.conv3.in_channels -= len(sorted_idx)
+    layer.conv2.out_channels -= len(sorted_idx)
+    layer.conv2.in_channels -= len(sorted_idx)
+    layer.conv2.groups -= len(sorted_idx)
     
     print("Finish Pruning: ")
     
 
 def UpdateNet(index,percentage,reload=True):
+    global tool_net
     global block_channel_pruning
     block_channel_pruning = copy.deepcopy(block_channel_origin)
     
@@ -654,7 +522,7 @@ def UpdateNet(index,percentage,reload=True):
                 block_channel_pruning[idx] = (round((percentage)*block_channel_pruning[idx]))
             else:
                 block_channel_pruning[idx] = 1
-    print('Pruning from Block',str(index),'Pruning Rate from',str(block_channel_origin[index]),"to",str(block_channel_pruning[index]))
+    print('Pruning from Layer',str(index),'Pruning Rate from',str(block_channel_origin[index]),"to",str(block_channel_pruning[index]))
     if reload:
         weight_reload()
 def weight_reload():
@@ -670,14 +538,13 @@ def full_layer_pruning():
     percentage = 0
     global best_acc
     writer = SummaryWriter(log_dir=log_path)
-    for idx in range(10):
+    for idx in range(6):
         best_acc = 0
         weight_reload()
         for element in range(len(pruning_rate)):
             pruning_rate[element] = percentage
         for index in range(len(block_channel_pruning)):   
-            if args.dataset == 'Imagenet' and index == 0:
-                continue
+
             UpdateNet(index,1-pruning_rate[index],reload=False)
             if args.dataset == 'Imagenet':
                 MobilenetV2Pruning_Imagenet(index)
@@ -722,6 +589,27 @@ def layerwise_pruning():
             percentage+=0.1
     writer.close()
     
+def bruth_force_calculate_k():
+    global best_acc
+    global K
+    for layer in range(len(pruning_rate)):
+        percentage = 0.1
+        pruning_rate[layer] = 0 
+        for _ in range(1):
+            K=1
+            for _ in range(int((1/2)*block_channel_origin[layer])):
+                best_acc = 0
+                writer = SummaryWriter(log_dir=log_path+f"/K_Selection/block{layer}/pruning{round((pruning_rate[layer]),1)*100}%")
+                pruning_rate[layer] = percentage
+                UpdateNet(layer,1-pruning_rate[layer])
+                if args.dataset == 'Imagenet':
+                    MobilenetV2Pruning_Imagenet(layer)
+                else:
+                    MobilenetV2Pruning(layer)
+                validation(network=new_net,save=False,dataloader=test_loader,calculate_k=True,file_name=args.weight_path+f"/block{layer}_pruned_{str(100*round(percentage,1))}%")
+                writer.add_scalar('ACC', best_acc, K)
+                K+=1
+            percentage+=0.1
 if args.pruning_mode == "Layerwise":
     layerwise_pruning()
 elif args.pruning_mode == "Fullayer":
