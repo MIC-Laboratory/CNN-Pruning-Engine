@@ -27,6 +27,8 @@ parser.add_argument('--dataset', type=str,help="dataset: Cifar10,Cifar100,Imagen
 parser.add_argument('--dataset_path', type=str)
 parser.add_argument('--pruning_mode', type=str,help="mode: Layerwise,Fullayer")
 parser.add_argument('--pruning_method', type=str,help="method: L1norm,Taylor,K-L1norm,K-Taylor,K-Distance")
+parser.add_argument('--calculate_k', type=str,help="options: Imagenet_K,Own_K ")
+
 args = parser.parse_args()
 print("==> Setting up hyper-parameters...")
 batch_size = 128
@@ -52,7 +54,7 @@ elif args.dataset == "Imagenet":
     input_size = 224
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 dataset_path = args.dataset_path
-log_path = f"Experiment_data/{args.dataset}/{args.pruning_method}/vgg16/{args.pruning_mode}"
+log_path = f"Experiment_data/Vgg16/{args.pruning_mode}/{args.calculate_k}/{args.dataset}/{args.pruning_method}/Vgg16/{args.pruning_mode}"
 train_transform = transforms.Compose(
     [
     transforms.CenterCrop(input_size),
@@ -97,7 +99,7 @@ train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
 test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
                                          shuffle=False, num_workers=num_workers)
 
-k_mean_number = [10,1,16,15,17,69,31,70,28,52,13,241,241]
+# k_mean_number = [10,1,16,15,17,69,31,70,28,52,13,241,241]
 classes = len(train_set.classes)
 optimalK = OptimalK(n_jobs=16,parallel_backend='multiprocessing ')
 
@@ -127,7 +129,12 @@ best_acc = 0
 mask_number = 1e10
 mean_feature_map = ["" for _ in range(len(vgg_cfg_pruning))]
 mean_gradient = ["" for _ in range(len(vgg_cfg_pruning))]
-
+if args.calculate_k == "Imagenet_K":
+    k_mean_number = [10,1,16,15,17,69,31,70,28,52,13,241,241]
+elif args.calculate_k == "Cifar10_K":
+    k_mean_number = [14,5,12,42,15,9,83,139,92,134,223,209,82]
+elif args.calculate_k == "Cifar100_K":
+    k_mean_number = [31,10,12,20,97,120,25,67,157,132,154,36,103]
 K = 1
 def compare_models(model_1, model_2):
     models_differ = 0

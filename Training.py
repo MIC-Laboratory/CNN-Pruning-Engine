@@ -7,7 +7,7 @@ import argparse
 from torchvision import transforms
 from tqdm import tqdm
 from torchvision import models
-from Models.Resnet import ResNet18
+from Models.Resnet import ResNet50
 from Models.Mobilenetv2 import MobileNetV2
 from Models.Vgg import VGG
 from torch.utils.tensorboard import SummaryWriter
@@ -94,8 +94,8 @@ classes = len(train_set.classes)
 # Netword preparation
 print("==> Preparing models")
 print(f"==> Using {device} mode")
-if args.models == "resnet18":
-    net = ResNet18(num_classes=classes)
+if args.models == "ResNet50":
+    net = ResNet50(num_classes=classes)
 elif args.models == "mobilenetv2":
     net = MobileNetV2(num_classes=classes)
 elif args.models == "vgg16":

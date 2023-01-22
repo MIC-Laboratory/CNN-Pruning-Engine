@@ -57,7 +57,7 @@ dataset_path = args.dataset_path
 log_path = f"Experiment_data/MobilenetV2/{args.calculate_k}/{args.dataset}/{args.pruning_method}/MobilenetV2/{args.pruning_mode}"
 train_transform = transforms.Compose(
     [
-    transforms.RandomCrop(input_size),
+    transforms.CenterCrop(input_size),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize(mean=dataset_mean,std=dataset_std)
@@ -84,13 +84,12 @@ elif args.dataset == "Imagenet":
     train_set = torchvision.datasets.ImageFolder(f"{dataset_path}/train",transform=train_transform)
     test_set = torchvision.datasets.ImageFolder(f"{dataset_path}/val",transform=test_transform)
     taylor_set = taylor_imagenet(f"{dataset_path}/train",transform=train_transform,data_limit=add_gradient_image_size)
-
+    taylor_loader = torch.utils.data.DataLoader(taylor_set, batch_size=batch_size//(2**3),
+                                          shuffle=False, num_workers=num_workers)
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size,
                                           shuffle=True, num_workers=num_workers)
 test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size,
                                          shuffle=False, num_workers=num_workers)
-taylor_loader = torch.utils.data.DataLoader(taylor_set,batch_size=batch_size,
-                                          shuffle=False, num_workers=num_workers)
 classes = len(train_set.classes)
 
 
@@ -283,18 +282,17 @@ def Taylor_add_gradient():
             gradient_layer-=1
         output.register_hook(_store_grad)
     valve = False
-    if args.dataset == "Imagenet":
-        for i in range(1,len(block_channel_origin)):
+    if args.dataset != "Imagenet":
+        for i in range(len(block_channel_origin)):
             tool_net.layers[i].conv2.register_forward_hook(forward_hook)
             tool_net.layers[i].conv2.register_forward_hook(backward_hook)
-    for m in tool_net.modules():
-        
-        if (isinstance(m,block)):
-            valve = True
-        if (isinstance(m,nn.Conv2d)) and valve:
-            m.register_forward_hook(forward_hook)
-            m.register_forward_hook(backward_hook)
-            valve = False
+    else:
+        tool_net.features[1].conv[0][0].register_forward_hook(forward_hook) #Skip the first block
+        tool_net.features[1].conv[0][0].register_forward_hook(backward_hook) #Skip the first block
+        for i in range(1,len(block_channel_origin)):
+            tool_net.features[i+1].conv[1][0].register_forward_hook(forward_hook)
+            tool_net.features[i+1].conv[1][0].register_forward_hook(backward_hook)
+    
     with tqdm(total=len(taylor_loader)) as pbar:
         
         for _ in range(len(taylor_loader)):
@@ -305,7 +303,6 @@ def Taylor_add_gradient():
             pbar.set_description_str(f"training time: {time.time()-start}")
 
 def Taylor(index):
-    conv_idx = 0
     if args.dataset == "Imagenet":
         tool_net = imagenet_mobilenet(pretrained=True)
         
@@ -313,23 +310,19 @@ def Taylor(index):
         tool_net = cifar_mobilenet(num_classes=classes)
         tool_net.load_state_dict(torch.load(weight_path))
     tool_net.to(device)
-    if index == 0:
+    if index == 0 and args.dataset != "Imagenet":
         Taylor_add_gradient()
-    valve = False
-    for i, tool in enumerate(tool_net.modules()):
-        if isinstance(tool,block):
-            valve = True
-        if isinstance(tool, nn.Conv2d) and valve:
-            if (index == conv_idx):
-                cam_grad = mean_gradient[index]*mean_feature_map[index]
-                cam_grad = torch.abs(cam_grad)
-                criteria_for_layer = cam_grad / (torch.linalg.norm(cam_grad) + 1e-8)
-                
-                importance = torch.sum(criteria_for_layer,dim=(1,2))
-                sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
-                return sorted_idx
-            conv_idx+=1
-            valve = False
+    if index == 1 and args.dataset == "Imagenet":
+        Taylor_add_gradient()
+
+    cam_grad = mean_gradient[index]*mean_feature_map[index]
+    cam_grad = torch.abs(cam_grad)
+    criteria_for_layer = cam_grad / (torch.linalg.norm(cam_grad) + 1e-8)
+    
+    importance = torch.sum(criteria_for_layer,dim=(1,2))
+    sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+    return sorted_idx
+
 def calculate_K(index): 
     # return k_mean_number[index]
     return K
@@ -592,7 +585,7 @@ def layerwise_pruning():
 def bruth_force_calculate_k():
     global best_acc
     global K
-    for layer in range(len(pruning_rate)):
+    for layer in range(1,len(pruning_rate)):
         percentage = 0.1
         pruning_rate[layer] = 0 
         for _ in range(1):
@@ -610,8 +603,9 @@ def bruth_force_calculate_k():
                 writer.add_scalar('ACC', best_acc, K)
                 K+=1
             percentage+=0.1
-if args.pruning_mode == "Layerwise":
-    layerwise_pruning()
-elif args.pruning_mode == "Fullayer":
-    full_layer_pruning()
+# if args.pruning_mode == "Layerwise":
+#     layerwise_pruning()
+# elif args.pruning_mode == "Fullayer":
+#     full_layer_pruning()
 
+bruth_force_calculate_k()

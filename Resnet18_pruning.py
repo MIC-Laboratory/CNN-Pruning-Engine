@@ -132,7 +132,6 @@ elif args.calculate_k == "Cifar10_K":
     k_mean_number = [30,30,36,31,21,32,83,66]
 elif args.calculate_k == "Cifar100_K":
     k_mean_number = [21,21,62,6,104,98,223,113]
-# k_mean_number = ["" for _ in range(len(block_channel_origin))]
 K = 1
 def compare_models(model_1, model_2):
     models_differ = 0
@@ -286,15 +285,12 @@ def Taylor_add_gradient():
                     mean_gradient[gradient_layer] = torch.add(mean_gradient[gradient_layer],grad.detach()/(add_gradient_image_size*classes))
             gradient_layer-=1
         output.register_hook(_store_grad)
-    valve = False
-    for m in tool_net.modules():
-        
-        if (isinstance(m,block)):
-            valve = True
-        if (isinstance(m,nn.Conv2d)) and valve:
-            m.register_forward_hook(forward_hook)
-            m.register_forward_hook(backward_hook)
-            valve = False
+    for num_layer in range(1,5):
+        layer = getattr(tool_net,f"layer{num_layer}")
+        layer[0].conv1.register_forward_hook(forward_hook)
+        layer[0].conv1.register_forward_hook(backward_hook)
+        layer[1].conv1.register_forward_hook(backward_hook)
+        layer[1].conv1.register_forward_hook(forward_hook)
     with tqdm(total=len(taylor_loader)) as pbar:
         
         for _ in range(len(taylor_loader)):
@@ -303,9 +299,11 @@ def Taylor_add_gradient():
             gc.collect()
             pbar.update()
             pbar.set_description_str(f"training time: {time.time()-start}")
-
+def clear_mean_gradient_feature_map():
+    global mean_gradient,mean_feature_map
+    mean_gradient = ["" for _ in range(len(block_channel_origin))]
+    mean_feature_map = ["" for _ in range(len(block_channel_origin))]
 def Taylor(index):
-    conv_idx = 0
     if args.dataset == "Imagenet":
         tool_net = resnet18(pretrained=True)
         
@@ -314,22 +312,16 @@ def Taylor(index):
         tool_net.load_state_dict(torch.load(weight_path))
     tool_net.to(device)
     if index == 0:
+        clear_mean_gradient_feature_map()
         Taylor_add_gradient()
-    valve = False
-    for i, tool in enumerate(tool_net.modules()):
-        if isinstance(tool,block):
-            valve = True
-        if isinstance(tool, nn.Conv2d) and valve:
-            if (index == conv_idx):
-                cam_grad = mean_gradient[index]*mean_feature_map[index]
-                cam_grad = torch.abs(cam_grad)
-                criteria_for_layer = cam_grad / (torch.linalg.norm(cam_grad) + 1e-8)
-                
-                importance = torch.sum(criteria_for_layer,dim=(1,2))
-                sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
-                return sorted_idx
-            conv_idx+=1
-            valve = False
+    cam_grad = mean_gradient[index]*mean_feature_map[index]
+    cam_grad = torch.abs(cam_grad)
+    criteria_for_layer = cam_grad / (torch.linalg.norm(cam_grad) + 1e-8)
+    
+    importance = torch.sum(criteria_for_layer,dim=(1,2))
+    sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+    return sorted_idx
+
 
 def calculate_K(index): 
     return k_mean_number[index]

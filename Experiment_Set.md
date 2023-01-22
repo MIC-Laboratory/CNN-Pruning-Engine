@@ -4,14 +4,14 @@
 - [x] ResNet18 K_Selection
 - [ ] MobilenetV2 K_Selection
 
-## VGG16 Pruning
+## VGG16 Pruning(Rerun Taylor)
 ### Full Layer Pruning
   - [x] Cifar10 
   - [x] Cifar 100 
   - [x] Imagenet
 ### LayerWise Pruning
-  - [ ] Cifar10 
-  - [ ] Cifar 100 
+  - [x] Cifar10 
+  - [x] Cifar 100 
   - [ ] Imagenet 
 
 ## ResNet Pruning
@@ -20,11 +20,11 @@
   - [x] Cifar 100 
   - [x] Imagenet 
 ### LayerWise Pruning
-  - [ ] Cifar10 
-  - [ ] Cifar 100 
+  - [x] Cifar10 
+  - [x] Cifar 100 
   - [ ] Imagenet 
 
-## Mobilenet Pruning
+## MobilenetV2 Pruning
 ### Full Layer Pruning
   - [ ] Cifar10 
   - [ ] Cifar 100 
@@ -32,30 +32,6 @@
 ### LayerWise Pruning
   - [ ] Cifar10 
   - [ ] Cifar 100 
-  - [ ] Imagenet 
-
-## NASNet-A Pruning
-### Full Layer Pruning
-  - [ ] Imagenet 
-### LayerWise Pruning
-  - [ ] Imagenet 
-
-## DARTS Pruning
-### Full Layer Pruning
-  - [ ] Imagenet 
-### LayerWise Pruning
-  - [ ] Imagenet 
-
-## MnasNet Pruning
-### Full Layer Pruning
-  - [ ] Imagenet 
-### LayerWise Pruning
-  - [ ] Imagenet 
-
-## FBNet-C Pruning
-### Full Layer Pruning
-  - [ ] Imagenet 
-### LayerWise Pruning
   - [ ] Imagenet 
 
 ## ProxylessNAS Pruning
@@ -64,17 +40,6 @@
 ### LayerWise Pruning
   - [ ] Imagenet 
 
-## SinglePathNAS Pruning
-### Full Layer Pruning
-  - [ ] Imagenet 
-### LayerWise Pruning
-  - [ ] Imagenet 
-
-## AutoSlim Pruning
-### Full Layer Pruning
-  - [ ] Imagenet 
-### LayerWise Pruning
-  - [ ] Imagenet 
 
 ## MobileNetV3-Large Pruning
 ### Full Layer Pruning

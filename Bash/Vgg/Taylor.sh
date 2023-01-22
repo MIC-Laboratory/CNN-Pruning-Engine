@@ -3,4 +3,5 @@ python3 Vgg_pruning.py \
 --dataset=Cifar10 \
 --dataset_path=/home/zhenyulin/Training_data/ \
 --pruning_mode=Fullayer \
---pruning_method=Taylor
+--pruning_method=Taylor \
+--calculate_k=Cifar100_K \
