@@ -153,7 +153,9 @@ def validation(network,dataloader):
                 pbar.update()
                 pbar.set_description_str("Acc: {:.3f} {}/{} | Loss: {:.3f}".format(accuracy,correct,total,running_loss/(i+1)))
             
-    
+            if accuracy > best_acc:
+                best_acc = accuracy
+                print("Best: Acc "+str(best_acc))
     return running_loss/len(dataloader),accuracy
 
 

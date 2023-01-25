@@ -72,8 +72,8 @@ classes = len(train_set.classes)
 
 # Netword preparation
 
-block_channel_origin = [48,96,96,120,120,120,240,240,240,240,480,288,288,288,576,1152,576,576,1152]
-block_channel_pruning = [48,96,96,120,120,120,240,240,240,240,480,288,288,288,576,1152,576,576,1152]
+block_channel_origin = [48,96,"_","_",96,120,120,120,240,240,240,240,480,288,288,288,576,1152,576,576,1152]
+block_channel_pruning = [48,"_","_",96,96,120,120,120,240,240,240,240,480,288,288,288,576,1152,576,576,1152]
 
 pruning_rate = [0 for _ in range(len(block_channel_origin))]
 tool_net = torch.hub.load('mit-han-lab/ProxylessNAS', "proxyless_mobile", pretrained=True)
@@ -150,7 +150,9 @@ def validation(network,dataloader):
                 accuracy = 100 * correct / total
                 pbar.update()
                 pbar.set_description_str("Acc: {:.3f} {}/{} | Loss: {:.3f}".format(accuracy,correct,total,running_loss/(i+1)))
-            
+            if accuracy > best_acc:
+                best_acc = accuracy
+                print("Best: Acc "+str(best_acc))
     
     return running_loss/len(dataloader),accuracy
 
@@ -422,9 +424,9 @@ def ProxylessNasPruning(pruning_block):
     global new_net
     global block_channel_pruning
     layer = new_net.blocks[pruning_block+1].mobile_inverted_conv
-    if isinstance(layer,ZeroLayer):
+    if type(layer).__name__ == "ZeroLayer":
         print("Skip Pruning: Zero Layer")
-        return
+        return True
     sorted_idx = get_sorted_idx(layer.depth_conv.conv.weight.data.clone(),pruning_block)
     layer.inverted_bottleneck.conv.weight.data = remove_filter_by_index(layer.inverted_bottleneck.conv.weight.data.clone(),sorted_idx)
     layer.depth_conv.conv.weight.data = remove_filter_by_index(layer.depth_conv.conv.weight.data.clone(),sorted_idx)
@@ -438,6 +440,7 @@ def ProxylessNasPruning(pruning_block):
     layer.depth_conv.conv.groups -= len(sorted_idx)
     layer.point_linear.conv.in_channels -= len(sorted_idx)
     print("Finish Pruning: ")
+    return False
     
 
 def UpdateNet(index,percentage,reload=True):
@@ -512,6 +515,8 @@ def bruth_force_calculate_k():
     global best_acc
     global K
     for layer in range(len(pruning_rate)):
+        if block_channel_origin[layer] == "_":
+            continue
         percentage = 0.1
         pruning_rate[layer] = 0 
         for _ in range(1):
@@ -521,7 +526,9 @@ def bruth_force_calculate_k():
                 writer = SummaryWriter(log_dir=log_path+f"/K_Selection/block{layer}/pruning{round((pruning_rate[layer]),1)*100}%")
                 pruning_rate[layer] = percentage
                 UpdateNet(layer,1-pruning_rate[layer])
-                ProxylessNasPruning(layer)
+                skip = ProxylessNasPruning(layer)
+                if skip:
+                    break
                 validation(network=new_net,dataloader=test_loader)
                 writer.add_scalar('ACC', best_acc, K)
                 K+=1
