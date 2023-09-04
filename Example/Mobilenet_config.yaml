@@ -1,0 +1,44 @@
+# This is retrain config
+Functionality_pruning_experiment:
+    Model:
+        Pretrained_weight_path: Weights/Cifar100/Mobilenetv2/Model@Mobilenetv2_ACC@79.32.pt
+        Pretrained_teacher_weight_path: Weights/Cifar100/Mobilenetv2/Model@Mobilenetv2_ACC@79.32.pt
+            
+        
+    Pruning:
+        Pruning_method:
+            Taylor #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            # Taylor
+            # K-Taylor
+            # K-L1norm
+            # K-Distance
+        Pruning_ratio:
+            0.1
+        Pruning_mode:
+            Fullayer #Options: Layerwise
+            # Layerwise
+        K_calculation:
+            [False,
+            Imagenet_K] #Options: Cifar10_K, Cifar100_K, Imagenet_K
+            # Cifar10_K
+            # Cifar100_K
+
+
+Training_seting:
+    model: Mobilenetv2
+    distillation_temperature: 20
+    distillation_alpha: 0.9
+    training_epoch: 20
+    batch_size: 128
+    num_workers: 4
+    learning_rate: 0.001
+    momentum: 0.9
+    weight_decay: 5.e-4
+    warmup_epoch: 10
+    dataset: 
+        Cifar100 #Options Cifar10, Cifar100, Imagenet
+        # Cifar100
+        # Imagenet
+    dataset_path: /home/zhenyulin/Training_data
+    experiment_data_path: Experiment_data_no_PCA/Training_Record/Retrain
+    weight_path: Weights/
