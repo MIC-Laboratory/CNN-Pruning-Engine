@@ -81,7 +81,7 @@ class testcase_base:
             [
             transforms.RandomCrop(self.input_size,padding=4),
             transforms.RandomHorizontalFlip(),
-            transforms.autoaugment.TrivialAugmentWide(),
+            # transforms.autoaugment.TrivialAugmentWide(),
             transforms.ToTensor(),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0, inplace=False),
             transforms.Normalize(mean=dataset_mean,std=dataset_std)
@@ -103,7 +103,7 @@ class testcase_base:
         elif  training_config["dataset"] == "Cifar100":
             self.train_set = torchvision.datasets.CIFAR100(dataset_path,train=True,transform=train_transform,download=True)
             self.test_set = torchvision.datasets.CIFAR100(dataset_path,train=False,transform=test_transform,download=True)
-            self.taylor_set = taylor_cifar10(dataset_path,train=True,transform=train_transform,download=True,taylor_number=100)
+            self.taylor_set = taylor_cifar100(dataset_path,train=True,transform=train_transform,download=True,taylor_number=100)
         elif  training_config["dataset"] == "Imagenet":
             self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),train=True,transform=train_transform)
             self.test_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"val"),train=False,transform=test_transform)

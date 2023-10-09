@@ -26,7 +26,7 @@ class Taylor:
                 if len(self.taylor_loader) > 1:
                     self.mean_feature_map[feature_map_layer] = torch.sum(output.detach(),dim=(0))/(self.total_sample_size)
                 else:
-                    self.mean_feature_map[feature_map_layer] = output.detach()/(self.total_sample_size)
+                    self.mean_feature_map[feature_map_layer] = torch.mean(output.detach(),dim=(0))
             else:
                 if len(self.taylor_loader) > 1:
                     self.mean_feature_map[feature_map_layer] = torch.add(self.mean_feature_map[feature_map_layer],torch.sum(output.detach(),dim=(0))/(self.total_sample_size))
@@ -45,7 +45,7 @@ class Taylor:
                     if len(self.taylor_loader) > 1:
                         self.mean_gradient[gradient_layer] = torch.sum(grad.detach(),dim=(0))/(self.total_sample_size)
                     else:
-                        self.mean_gradient[gradient_layer] = grad.detach()/(self.total_sample_size)
+                        self.mean_gradient[gradient_layer] = torch.mean(grad.detach(),dim=(0))
                 else:
                     if len(self.taylor_loader) > 1:
                         self.mean_gradient[gradient_layer] = torch.add(self.mean_gradient[gradient_layer],torch.sum(grad.detach(),dim=(0))/(self.total_sample_size))
@@ -55,15 +55,7 @@ class Taylor:
             output.register_hook(_store_grad)
         self.tool_net = self.hook_function(self.tool_net,forward_hook,backward_hook)
         
-        # for block in range(self.tool_net):
-        #     layer = tool_net.blocks[block+1].mobile_inverted_conv
-        #     if block_channel_origin[block] == "_":
-        #         continue
-        #     if type(layer).__name__ == "ZeroLayer":
-        #         print("Skip Pruning: Zero Layer")
-        #         continue
-        #     layer.depth_conv.conv.register_forward_hook(forward_hook)
-        #     layer.depth_conv.conv.register_forward_hook(backward_hook)
+
         optimizer = torch.optim.Adam(self.tool_net.parameters())
         loss = torch.nn.CrossEntropyLoss()
         with tqdm(total=len(self.taylor_loader)) as pbar:
@@ -78,8 +70,10 @@ class Taylor:
     def store_grad_layer(self,layers):
         # copy_layers = deepcopy(layers)
         for layer in range(len(layers)):
-            layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer]
-            layers[layer].__dict__["gradient"] = self.mean_gradient[layer]
+            layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer*2] + self.mean_feature_map[(layer*2)+1]
+            layers[layer].__dict__["gradient"] = self.mean_gradient[layer*2] + self.mean_feature_map[(layer*2)+1]
+
+
         # return copy_layers
     def clear_mean_gradient_feature_map(self):
         self.mean_gradient = ["" for _ in range(self.total_layer)]
@@ -100,11 +94,17 @@ class Taylor:
 
     def Taylor_pruning(self,layer):
         
-        cam_grad = layer.gradient*layer.feature_map
-        # cam_grad = self.mean_gradient[index]*self.mean_feature_map[index]
-        cam_grad = torch.abs(cam_grad)
-        criteria_for_layer = cam_grad / (torch.linalg.norm(cam_grad) + 1e-8)
+        criteria_for_layer = torch.mul(layer.gradient,layer.feature_map)
+        criteria_for_layer = criteria_for_layer.view([*criteria_for_layer.shape[:2], -1])
+        criteria_for_layer = criteria_for_layer.mean(dim=2)
+        criteria_for_layer = torch.abs(criteria_for_layer)
+        importance = criteria_for_layer.mean(dim=1) 
+        """
+        That's the old algorithm, it seems not working, comment out
+        """
+        # criteria_for_layer = torch.abs(criteria_for_layer)
+        # criteria_for_layer = criteria_for_layer / (torch.linalg.norm(criteria_for_layer) + 1e-8)
         
-        importance = torch.sum(criteria_for_layer,dim=(1,2))
+        # importance = torch.mean(criteria_for_layer,dim=(1,2))
         sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
         return sorted_idx

@@ -12,6 +12,7 @@ from Weapon.WarmUpLR import WarmUpLR
 from utils import frozen_layer,deFrozen_layer,compare_models
 from copy import deepcopy
 from thop import profile
+from torch.utils.tensorboard import SummaryWriter
 
 sys.path.append(os.path.join(os.getcwd()))
 from Pruning_engine.pruning_engine import pruning_engine
@@ -19,7 +20,7 @@ from Pruning_engine.pruning_engine import pruning_engine
 class VGG_testcase(testcase_base):
     def __init__(self,config_file_path):
         super().__init__(config_file_path)
-        self.total_layer = 13
+        self.total_layer = 13*2
         self.tool_net = deepcopy(self.net)
         if self.pruning_method != "L1norm":
             layer_store = self.get_layer_store()
@@ -98,6 +99,10 @@ class VGG_testcase(testcase_base):
             if isinstance(layers[layer],Conv2d):
                 layers[layer].register_forward_hook(forward_hook)
                 layers[layer].register_forward_hook(backward_hook)
+            if isinstance(layers[layer],BatchNorm2d):
+                layers[layer].register_forward_hook(forward_hook)
+                layers[layer].register_forward_hook(backward_hook)
+            
         return copy_tool_net
     def get_layer_store(self):
         layers = self.net.features
@@ -105,17 +110,101 @@ class VGG_testcase(testcase_base):
         for layer in range(len(layers)):
             if isinstance(layers[layer],Conv2d):
                 result.append(layers[layer])
-        return result
-config_file_path = "Example/VGG_config.yaml"
-vgg_testcase = VGG_testcase(config_file_path)
-print("Before pruning:",vgg_testcase.OpCounter())
-# print(vgg_testcase.net)
-testing_criterion = nn.CrossEntropyLoss()
 
-print("==> Base validation acc:")
-loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
-vgg_testcase.pruning()
-loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
-print("After pruning:",vgg_testcase.OpCounter())
-# print(vgg_testcase.net)
-vgg_testcase.retraining()
+        return result
+
+# =========================================> Extra Experiment function
+
+def VGG_pruning():
+    config_file_path = "Example/VGG_config.yaml"
+    vgg_testcase = VGG_testcase(config_file_path)
+
+    print("Before pruning:",vgg_testcase.OpCounter())
+    testing_criterion = nn.CrossEntropyLoss()
+
+    print("==> Base validation acc:")
+    loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
+    vgg_testcase.pruning()
+    vgg_testcase.retraining()
+    loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
+    print("After pruning:",vgg_testcase.OpCounter())
+
+def VGG_layerwise_pruning():
+    config_file_path = "Example/VGG_config.yaml"
+    vgg_testcase = VGG_testcase(config_file_path)
+    pruning_ratio_list_reference = deepcopy(vgg_testcase.pruning_ratio_list)
+    vgg_testcase_net_reference = deepcopy(vgg_testcase.net)
+    
+    for layer_idx in range(len(pruning_ratio_list_reference)):
+        vgg_testcase.pruning_ratio_list = deepcopy(pruning_ratio_list_reference)
+        vgg_testcase.writer = SummaryWriter(log_dir=os.path.join(vgg_testcase.log_path,"Layer"+str(layer_idx)))
+        accuracy_list = []
+        mac_list = []
+        for pruning_percentage in range(10):
+            vgg_testcase.net = deepcopy(vgg_testcase_net_reference)
+            vgg_testcase.pruning_ratio_list[layer_idx] = round(pruning_percentage/10,1)
+
+            print("Pruning Ratio:",vgg_testcase.pruning_ratio_list[layer_idx])
+
+            print("Before pruning:",vgg_testcase.OpCounter())
+            testing_criterion = nn.CrossEntropyLoss()
+
+            print("==> Base validation acc:")
+            loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
+            vgg_testcase.pruning()
+            loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
+            print("After pruning:",vgg_testcase.OpCounter())
+            vgg_testcase.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
+            accuracy_list.append(accuracy)
+            mac_list.append(float(vgg_testcase.OpCounter()[0].rstrip('M')))
+        
+        # with open(vgg_testcase.log_path+"pruning_ratio.txt","a") as f:
+        #     f.write(f"\n===============>Layer{layer_idx} Pruning Ratio==================>"+str(calculate_pruning_ratio(accuracy_list,mac_list,13)))
+        vgg_testcase.writer.close()
+
+def VGG_fullayer_pruning():
+    config_file_path = "Example/VGG_config.yaml"
+    vgg_testcase = VGG_testcase(config_file_path)
+    vgg_testcase_net_reference = deepcopy(vgg_testcase.net)
+
+    for pruning_percentage in range(10):
+        for layer_idx in range(len(deepcopy(vgg_testcase.pruning_ratio_list))):
+            vgg_testcase.pruning_ratio_list[layer_idx] = round(pruning_percentage/10,1)
+        vgg_testcase.net = deepcopy(vgg_testcase_net_reference)
+        print("Before pruning:",vgg_testcase.OpCounter())
+        testing_criterion = nn.CrossEntropyLoss()
+
+        print("==> Base validation acc:")
+        loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
+        vgg_testcase.pruning()
+        loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
+        print("After pruning:",vgg_testcase.OpCounter())
+        vgg_testcase.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
+    vgg_testcase.writer.close()
+
+# =============== Formula: 
+# For each layer, the average Mac decrease,
+# divided by the average accuracy loss.
+# to norm between 0 and 1, you will need first run
+# with return raw_pruning_score to get the min and max value for raw_pruining score
+# Then fit in to this formula: (value - min) / (max - min)
+def calculate_pruning_ratio(accuracy_list,mac_list,num_conv_layer):
+
+    accuracy_loss_list = []
+    mac_loss_list = []
+
+    for list_idx in range(len(accuracy_list)-1,0,-1):
+        accuracy_loss_list.append(abs(accuracy_list[list_idx] - accuracy_list[list_idx-1]))
+        mac_loss_list.append(abs(mac_list[list_idx] - mac_list[list_idx-1]))
+    
+    average_accuracy_loss = sum(accuracy_loss_list)/len(accuracy_loss_list)
+    average_mac_loss = sum(mac_loss_list)/len(mac_loss_list)
+
+    raw_pruning_score = round(average_mac_loss/average_accuracy_loss,2)
+    # raw_pruning_score = round(average_accuracy_loss/average_mac_loss,2)
+    return raw_pruning_score
+
+
+# VGG_pruning()
+# VGG_layerwise_pruning()
+VGG_fullayer_pruning()
