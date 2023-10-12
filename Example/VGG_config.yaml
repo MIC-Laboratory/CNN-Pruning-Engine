@@ -38,9 +38,9 @@ Training_seting:
     weight_decay: 5.e-4
     warmup_epoch: 10
     dataset: 
-        Cifar100 #Options Cifar10, Cifar100, Imagenet
+        Imagenet #Options Cifar10, Cifar100, Imagenet
         # Cifar100
         # Imagenet
     dataset_path: /home/zhenyulin/Training_data
-    experiment_data_path: Experiment/VGG_L1norm_Taylor
+    experiment_data_path: Experiment/VGG_Imagenet
     weight_path: Weights/

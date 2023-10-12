@@ -20,7 +20,7 @@ from Pruning_engine.pruning_engine import pruning_engine
 class VGG_testcase(testcase_base):
     def __init__(self,config_file_path):
         super().__init__(config_file_path)
-        self.total_layer = 13*2
+        self.total_layer = 13
         self.tool_net = deepcopy(self.net)
         if self.pruning_method != "L1norm":
             layer_store = self.get_layer_store()
@@ -49,6 +49,7 @@ class VGG_testcase(testcase_base):
                 else:
                     self.pruner.set_pruning_ratio(self.pruning_ratio_list[pruning_ratio_idx])
                     self.pruner.set_layer(layers[layer],main_layer=True)
+                    sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
                     layers[layer] = self.pruner.remove_conv_filter_kernel()
                 pruning_ratio_idx+=1
             elif isinstance(layers[layer], BatchNorm2d):
@@ -99,9 +100,7 @@ class VGG_testcase(testcase_base):
             if isinstance(layers[layer],Conv2d):
                 layers[layer].register_forward_hook(forward_hook)
                 layers[layer].register_forward_hook(backward_hook)
-            if isinstance(layers[layer],BatchNorm2d):
-                layers[layer].register_forward_hook(forward_hook)
-                layers[layer].register_forward_hook(backward_hook)
+            
             
         return copy_tool_net
     def get_layer_store(self):
@@ -124,8 +123,8 @@ def VGG_pruning():
 
     print("==> Base validation acc:")
     loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
-    vgg_testcase.pruning()
-    vgg_testcase.retraining()
+    # vgg_testcase.pruning()
+    # vgg_testcase.retraining()
     loss,accuracy = vgg_testcase.validation(criterion=testing_criterion,save=False)
     print("After pruning:",vgg_testcase.OpCounter())
 
@@ -167,9 +166,9 @@ def VGG_fullayer_pruning():
     vgg_testcase = VGG_testcase(config_file_path)
     vgg_testcase_net_reference = deepcopy(vgg_testcase.net)
 
-    for pruning_percentage in range(10):
+    for pruning_percentage in range(20):
         for layer_idx in range(len(deepcopy(vgg_testcase.pruning_ratio_list))):
-            vgg_testcase.pruning_ratio_list[layer_idx] = round(pruning_percentage/10,1)
+            vgg_testcase.pruning_ratio_list[layer_idx] = round(pruning_percentage/20,1)
         vgg_testcase.net = deepcopy(vgg_testcase_net_reference)
         print("Before pruning:",vgg_testcase.OpCounter())
         testing_criterion = nn.CrossEntropyLoss()

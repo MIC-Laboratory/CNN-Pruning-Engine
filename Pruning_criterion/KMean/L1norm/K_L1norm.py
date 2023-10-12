@@ -15,6 +15,7 @@ class K_L1norm(Kmean_base):
         k = layer.k_value
 
         output_channel = int(weight.shape[0] * self.pruning_ratio)
+        
         pruning_index =  self.Kmean(weight,sort_index,k,output_channel)
         """
         using l1norm to sort the pruning index, and put them to the end of sorted_idx

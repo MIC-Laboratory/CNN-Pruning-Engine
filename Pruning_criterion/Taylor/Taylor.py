@@ -70,8 +70,8 @@ class Taylor:
     def store_grad_layer(self,layers):
         # copy_layers = deepcopy(layers)
         for layer in range(len(layers)):
-            layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer*2] + self.mean_feature_map[(layer*2)+1]
-            layers[layer].__dict__["gradient"] = self.mean_gradient[layer*2] + self.mean_feature_map[(layer*2)+1]
+            layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer]
+            layers[layer].__dict__["gradient"] = self.mean_gradient[layer]
 
 
         # return copy_layers
