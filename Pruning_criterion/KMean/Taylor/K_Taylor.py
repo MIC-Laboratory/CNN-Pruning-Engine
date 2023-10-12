@@ -4,6 +4,8 @@ import sys
 from sklearn.decomposition import PCA
 from tqdm import tqdm
 from sklearn.metrics import silhouette_score
+from sklearn.cluster import KMeans
+
 sys.path.append(os.path.join(os.getcwd()))
 from Pruning_criterion.KMean.Kmean_base import Kmean_base
 from Pruning_criterion.Taylor.Taylor import Taylor
@@ -21,7 +23,7 @@ class K_Taylor(Kmean_base):
 
         output_channel = int(weight.shape[0] * self.pruning_ratio)
         
-        m_weight_vector = weight.reshape(num_filter, -1).cpu()
+        m_weight_vector = weight.reshape(weight.shape[0], -1).cpu()
         pca = PCA(n_components=0.8).fit(m_weight_vector)
         m_weight_vector = pca.fit_transform(m_weight_vector)
         # k == -1 means there's no k value provided in this layer
