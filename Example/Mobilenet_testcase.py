@@ -63,36 +63,7 @@ class Mobilenet_testcase(testcase_base):
             layers[layer].conv3 = self.pruner.remove_kernel_by_index(sorted_idx)
         
 
-    def retraining(self):
-        training_criterion = nn.KLDivLoss()
-        testing_criterion = nn.CrossEntropyLoss()
-
-        print("==> Base validation acc:")
-        loss,accuracy = self.validation(criterion=testing_criterion,save=False)
-
-        print("==> Start pruning")
-        optimizer = optim.SGD(self.net.parameters(), lr=self.lr_rate,momentum=self.momentum,weight_decay=self.weight_decay)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.training_epoch)
-        warmup_scheduler = WarmUpLR(optimizer, len(self.train_loader) * self.warmup_epoch)
-
-        print("==> Start retraining")
-        for epoch in range(self.training_epoch + self.warmup_epoch):
-            self.train(
-                epoch, 
-                optimizer=optimizer,
-                criterion=training_criterion,
-                warmup_scheduler=warmup_scheduler
-                )
-            loss,accuracy = self.validation(
-                criterion=testing_criterion,
-                optimizer=optimizer,
-                )
-            if (epoch > self.warmup_epoch):
-                scheduler.step()
-            self.writer.add_scalar('Test/Loss', loss, epoch)
-            self.writer.add_scalar('Test/ACC', accuracy, epoch)
-        self.writer.close()
-        print("==> Finish")
+    
     def hook_function(self,tool_net,forward_hook,backward_hook):
         copy_tool_net = deepcopy(tool_net)
         layers = copy_tool_net.layers

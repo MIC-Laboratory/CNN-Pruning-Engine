@@ -32,7 +32,7 @@ Training_seting:
     distillation_alpha: 0.9
     training_epoch: 20
     batch_size: 128
-    num_workers: 4
+    num_workers: 0
     learning_rate: 0.01
     momentum: 0.9
     weight_decay: 5.e-4
@@ -41,6 +41,6 @@ Training_seting:
         Imagenet #Options Cifar10, Cifar100, Imagenet
         # Cifar100
         # Imagenet
-    dataset_path: /home/zhenyulin/Training_data
+    dataset_path: /home/zhenyulin/Training_data/imagenet-train
     experiment_data_path: Experiment/VGG_Imagenet
     weight_path: Weights/
