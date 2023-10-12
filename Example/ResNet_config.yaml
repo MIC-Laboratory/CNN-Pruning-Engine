@@ -7,7 +7,7 @@ Functionality_pruning_experiment:
         
     Pruning:
         Pruning_method:
-            K-Taylor #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm

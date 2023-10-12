@@ -284,9 +284,9 @@ class testcase_base:
                 pbar.set_description_str("Epoch: {} | Acc: {:.3f} {}/{} | Loss: {:.3f}".format(epoch,accuracy,correct,total,running_loss/(i+1)))
     def OpCounter(self):
         input = torch.randn(1, 3, self.input_size, self.input_size).to(self.device)
-        macs, params = profile(self.net, inputs=(input, ))
-        macs, params = clever_format([macs, params], "%.3f")
-        return macs,params
+        num_macs, num_params = profile(self.net, inputs=(input, ))
+        macs, params = clever_format([num_macs, num_params], "%.3f")
+        return macs,params,num_macs,num_params
     
     def retraining(self):
         training_criterion = nn.KLDivLoss()
@@ -356,7 +356,12 @@ class testcase_base:
                 self.pruning()
                 loss,accuracy = self.validation(criterion=testing_criterion,save=False)
                 print("After pruning:",self.OpCounter())
-                vgg_testcase.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
+                _,_,mac,param = self.OpCounter()
+                self.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
+                self.writer.add_scalar('Test/Mac', mac, pruning_percentage)
+                self.writer.add_scalar('Test/Param', param, pruning_percentage)
+                self.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
+                
                 accuracy_list.append(accuracy)
                 mac_list.append(float(vgg_testcase.OpCounter()[0].rstrip('M')))
             
@@ -380,7 +385,10 @@ class testcase_base:
             self.pruning()
             loss,accuracy = self.validation(criterion=testing_criterion,save=False)
             print("After pruning:",self.OpCounter())
+            _,_,mac,param = self.OpCounter()
             self.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
+            self.writer.add_scalar('Test/Mac', mac, pruning_percentage)
+            self.writer.add_scalar('Test/Param', param, pruning_percentage)
         self.writer.close()
 
     # =============== Formula: 
