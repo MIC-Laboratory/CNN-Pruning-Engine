@@ -3,20 +3,23 @@ import torch
 import copy
 from sklearn.decomposition import PCA
 
+
 class Kmean_base:
     def __init__(self):
         pass
     def Kmean(self,weight,sort_index,k,output_channel):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        sil = []
         num_filter = weight.data.size()[0]
         remove_filter = num_filter - output_channel
         
-        n_clusters = k
+        
         m_weight_vector = weight.reshape(num_filter, -1).cpu()
-
         pca = PCA(n_components=0.8).fit(m_weight_vector)
         m_weight_vector = pca.fit_transform(m_weight_vector)
+        
+        
+        n_clusters = k
+        
         
         kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
         print("K:",n_clusters)

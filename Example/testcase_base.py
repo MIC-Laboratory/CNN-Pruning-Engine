@@ -87,7 +87,8 @@ class testcase_base:
                 transforms.RandomCrop(self.input_size),
             ]
         else:
-            crop = [transforms.RandomCrop(self.input_size,padding=4)],
+            crop = transforms.RandomCrop(self.input_size,padding=4),
+            
         train_transform = transforms.Compose(
             [
             *crop,
@@ -132,7 +133,9 @@ class testcase_base:
         print("==> Preparing K")
         if  training_config["model"] == "ResNet101":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
-                pass
+                # We haven't calculate the k for resnet, so use silhouette_score to calculate the best k
+                # to use silhouette_score, we set the list_k to -1 for all layer
+                self.list_k = [-1 for _ in range(33)]
             else:
                 pass
             
@@ -172,9 +175,13 @@ class testcase_base:
             else:
                 self.net = VGG(num_class=self.classes)
                 self.teacher_net = VGG(num_class=self.classes)
-        if training_config["dataset"] != "Imagenet":   
-            self.net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_weight_path"])["state_dict"])
-            self.teacher_net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_teacher_weight_path"])["state_dict"]) 
+        if training_config["dataset"] != "Imagenet": 
+            if "state_dict" in torch.load(pruning_config["Model"]["Pretrained_weight_path"]).keys():
+                self.net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_weight_path"])["state_dict"])
+                self.teacher_net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_teacher_weight_path"])["state_dict"]) 
+            else:
+                self.net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_weight_path"]))
+                self.teacher_net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_teacher_weight_path"])) 
         self.net.to(self.device)
         
         self.teacher_net.to(self.device)
@@ -313,7 +320,7 @@ class testcase_base:
         print("==> Finish")
     # =========================================> Extra Experiment function
 
-    def pruning(self):
+    def config_pruning(self):
 
 
         print("Before pruning:",self.OpCounter())
@@ -405,8 +412,5 @@ class testcase_base:
     def pruning(self):
         raise Exception("Not Implemented")
     
-    def retraining(self):
-        raise Exception("Not Implemented")
-
     def hook_function(self,tool_net,forward_hook,backward_hook):
         raise Exception("Not Implemented")

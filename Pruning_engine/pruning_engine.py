@@ -127,7 +127,7 @@ class pruning_engine(pruning_engine_base):
         else:
             self.copy_layer.weight.data = self.base_remove_filter_by_index(
                 weight=self.copy_layer.weight.data.clone(),
-                sorted_idx=self.sorted_idx,
+                sorted_idx=sorted_idx,
                 linear=linear
                 )
         if linear:

@@ -19,8 +19,8 @@ class ResNet_testcase(testcase_base):
         super().__init__(config_file_path)
         self.total_layer = 33
         self.tool_net = deepcopy(self.net)
-        if self.pruning_method == "Taylor":
-            layer_store_grad = self.get_layer_store()
+        if self.pruning_method != "L1norm":
+            layer_store = self.get_layer_store()
             self.pruner = pruning_engine(
                 self.pruning_method,
                 self.pruning_ratio,
@@ -29,13 +29,6 @@ class ResNet_testcase(testcase_base):
                 total_sample_size=len(self.taylor_set), 
                 hook_function=self.hook_function,
                 tool_net=self.tool_net,
-                layer_store_private_variable=get_layer_store
-                )
-        elif self.pruning_method[:1] == "K":
-            layer_store = self.get_layer_store()
-            self.pruner = pruning_engine(
-                self.pruning_method,
-                self.pruning_ratio,
                 layer_store_private_variable=layer_store,
                 list_k=self.list_k
                 )
@@ -48,8 +41,10 @@ class ResNet_testcase(testcase_base):
             self.net.layer3,
             self.net.layer4
         ]
+        pruning_ratio_idx = 0
         for layers in layersx:
             for layer in range(len(layers)):
+                self.pruner.set_pruning_ratio(self.pruning_ratio_list[pruning_ratio_idx])
                 self.pruner.set_layer(layers[layer].conv2,main_layer=True)
                 sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
                 layers[layer].conv2 = self.pruner.remove_filter_by_index(sorted_idx)
@@ -71,8 +66,7 @@ class ResNet_testcase(testcase_base):
                 self.pruner.set_layer(layers[layer].conv3)
                 sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
                 layers[layer].conv3 = self.pruner.remove_kernel_by_index(sorted_idx=sorted_idx)
-        print(self.net)
-
+                pruning_ratio_idx+=1
     
 
 
@@ -105,6 +99,7 @@ class ResNet_testcase(testcase_base):
         return result
 config_file_path = "Example/ResNet_config.yaml"
 
-mb_testcase = ResNet_testcase(config_file_path)
-mb_testcase.pruning()
-mb_testcase.retraining()
+testcase = ResNet_testcase(config_file_path)
+# testcase.config_pruning()
+# testcase.layerwise_pruning()
+testcase.fullayer_pruning()

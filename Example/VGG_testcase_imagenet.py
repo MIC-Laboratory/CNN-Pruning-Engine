@@ -86,6 +86,6 @@ class VGG_testcase(testcase_base):
 
 
 testcase = VGG_testcase("Example/VGG_config.yaml")
-# VGG_pruning()
-# VGG_layerwise_pruning()
+# testcase.config_pruning()
+# testcase.layerwise_pruning()
 testcase.fullayer_pruning()
