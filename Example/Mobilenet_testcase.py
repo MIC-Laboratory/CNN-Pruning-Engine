@@ -18,8 +18,8 @@ class Mobilenet_testcase(testcase_base):
         super().__init__(config_file_path)
         self.total_layer = 17
         self.tool_net = deepcopy(self.net)
-        if self.pruning_method == "Taylor":
-            layer_store_grad = self.get_layer_store()
+        if self.pruning_method != "L1norm":
+            layer_store = self.get_layer_store(self.net)
             self.pruner = pruning_engine(
                 self.pruning_method,
                 self.pruning_ratio,
@@ -28,13 +28,6 @@ class Mobilenet_testcase(testcase_base):
                 total_sample_size=len(self.taylor_set), 
                 hook_function=self.hook_function,
                 tool_net=self.tool_net,
-                layer_store_private_variable=get_layer_store
-                )
-        elif self.pruning_method[:1] == "K":
-            layer_store = self.get_layer_store()
-            self.pruner = pruning_engine(
-                self.pruning_method,
-                self.pruning_ratio,
                 layer_store_private_variable=layer_store,
                 list_k=self.list_k
                 )
@@ -74,9 +67,9 @@ class Mobilenet_testcase(testcase_base):
             
 
         return copy_tool_net
-    def get_layer_store(self):
+    def get_layer_store(self,net):
         result = []
-        layers = self.net.layers
+        layers = net.layers
         for layer in range(len(layers)):
             result.append(layers[layer].conv2)
             

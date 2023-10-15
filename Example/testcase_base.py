@@ -120,6 +120,10 @@ class testcase_base:
             self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
             self.test_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"val"),transform=test_transform)
             self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=100)
+        if pruning_config["Pruning"]["K_calculation"][0]:
+            self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
+            self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=10)
+            self.test_set = self.taylor_set
         self.classes = len(self.train_set.classes)
         g = torch.Generator()
         g.manual_seed(seed)
@@ -133,9 +137,7 @@ class testcase_base:
         print("==> Preparing K")
         if  training_config["model"] == "ResNet101":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
-                # We haven't calculate the k for resnet, so use silhouette_score to calculate the best k
-                # to use silhouette_score, we set the list_k to -1 for all layer
-                self.list_k = [-1 for _ in range(33)]
+                self.list_k = [9, 25, 20, 59, 40, 5, 58, 56, 24, 92, 116, 117, 57, 70, 116, 81, 64, 4, 32, 50, 108, 118, 88, 44, 60, 39, 114, 70, 112, 58, 12, 38, 205]
             else:
                 pass
             
@@ -328,14 +330,14 @@ class testcase_base:
 
         print("==> Base validation acc:")
         loss,accuracy = self.validation(criterion=testing_criterion,save=False)
-        # vgg_testcase.pruning()
+        self.pruning()
         # vgg_testcase.retraining()
         loss,accuracy = self.validation(criterion=testing_criterion,save=False)
         print("After pruning:",self.OpCounter())
 
     def layerwise_pruning(self):
         pruning_ratio_list_reference = deepcopy(self.pruning_ratio_list)
-        vgg_testcase_net_reference = deepcopy(self.net)
+        testcase_net_reference = deepcopy(self.net)
         
         for layer_idx in range(len(pruning_ratio_list_reference)):
             self.pruning_ratio_list = deepcopy(pruning_ratio_list_reference)
@@ -343,8 +345,8 @@ class testcase_base:
             accuracy_list = []
             mac_list = []
             for pruning_percentage in range(10):
-                vgg_testcase.net = deepcopy(vgg_testcase_net_reference)
-                vgg_testcase.pruning_ratio_list[layer_idx] = round(pruning_percentage/10,1)
+                self.net = deepcopy(testcase_net_reference)
+                self.pruning_ratio_list[layer_idx] = round(pruning_percentage/10,1)
 
                 print("Pruning Ratio:",self.pruning_ratio_list[layer_idx])
 
@@ -414,11 +416,52 @@ class testcase_base:
         return raw_pruning_score
 
 
+    def k_search(self):
+        
+        pruning_ratio_list_reference = deepcopy(self.pruning_ratio_list)
+        vgg_testcase_net_reference = deepcopy(self.net)
+        reference__k = [1 for _ in range(len(self.list_k))]
+        print("==> Start to search for k:")
+        for layer_idx in range(len(pruning_ratio_list_reference)):
+            self.pruning_ratio_list = deepcopy(pruning_ratio_list_reference)
+            self.writer = SummaryWriter(log_dir=self.log_path+f"/K_Selection/layer{layer_idx}")
+            accuracy_list = []
+            mac_list = []
+            self.list_k = reference__k
+            self.pruning_ratio_list = [0 for _ in range(len(pruning_ratio_list_reference))]
+            self.pruning_ratio_list[layer_idx] = 0.1
+            network_layer_reference = self.get_layer_store(self.net)
+            for k in range(2,network_layer_reference[layer_idx].weight.shape[0]//2):
+                self.net = deepcopy(vgg_testcase_net_reference)
+                network_layer_reference = self.get_layer_store(self.net)
+                
+                network_layer_reference[layer_idx].k_value = k
+                print(f"k: {k}, layer: {layer_idx}")
+
+                
+                self.pruning()
+                testing_criterion = nn.CrossEntropyLoss()
+                loss,accuracy = self.validation(criterion=testing_criterion,save=False)
+                print("After pruning:",self.OpCounter())
+                _,_,mac,param = self.OpCounter()
+                self.writer.add_scalar('Test/ACC', accuracy, k)
+                
+                
+                
+            
+            # with open(vgg_testcase.log_path+"pruning_ratio.txt","a") as f:
+            #     f.write(f"\n===============>Layer{layer_idx} Pruning Ratio==================>"+str(calculate_pruning_ratio(accuracy_list,mac_list,13)))
+            self.writer.close()
+        
+        
 
 
 
     def pruning(self):
-        raise Exception("Not Implemented")
+        raise Exception("Implement yourself")
     
     def hook_function(self,tool_net,forward_hook,backward_hook):
-        raise Exception("Not Implemented")
+        raise Exception("Implement yourself")
+    
+    def get_layer_store(self,net):
+        raise Exception("Implement yourself")

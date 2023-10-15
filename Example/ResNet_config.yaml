@@ -7,7 +7,7 @@ Functionality_pruning_experiment:
         
     Pruning:
         Pruning_method:
-            L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            K-L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
@@ -22,7 +22,7 @@ Functionality_pruning_experiment:
             Fullayer #Options: Layerwise
             # Layerwise
         K_calculation:
-            [False,
+            [True,
             Imagenet_K] #Options: Cifar10_K, Cifar100_K, Imagenet_K
             # Cifar10_K
             # Cifar100_K
@@ -40,9 +40,9 @@ Training_seting:
     weight_decay: 5.e-4
     warmup_epoch: 10
     dataset: 
-        Cifar100 #Options Cifar10, Cifar100, Imagenet
+        Imagenet #Options Cifar10, Cifar100, Imagenet
         # Cifar100
         # Imagenet
-    dataset_path: /home/zhenyulin/Training_data
-    experiment_data_path: Experiment/ResNet101_Cifar100
+    dataset_path: /home/zhenyulin/Training_data/imagenet-train
+    experiment_data_path: Experiment/ResNet101_Imagenet
     weight_path: Weights/

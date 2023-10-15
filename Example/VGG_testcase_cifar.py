@@ -103,8 +103,8 @@ class VGG_testcase(testcase_base):
             
             
         return copy_tool_net
-    def get_layer_store(self):
-        layers = self.net.features
+    def get_layer_store(self,net):
+        layers = net.features
         result = []
         for layer in range(len(layers)):
             if isinstance(layers[layer],Conv2d):
@@ -117,6 +117,6 @@ class VGG_testcase(testcase_base):
 
 
 testcase = VGG_testcase("Example/VGG_config.yaml")
-# testcase.config_pruning()
+testcase.config_pruning()
 # testcase.layerwise_pruning()
-testcase.fullayer_pruning()
+# testcase.fullayer_pruning()
