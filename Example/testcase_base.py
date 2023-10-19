@@ -23,6 +23,7 @@ sys.path.append(os.path.join(os.getcwd()))
 from Models.Resnet import ResNet101
 from Models.Mobilenetv2 import MobileNetV2
 from Models.Vgg import VGG
+from Models.WideResNet import Wide_ResNet
 from Pruning_engine.pruning_engine import pruning_engine
 from Pruning_criterion.Taylor.Taylor_set_cifar import taylor_cifar10,taylor_cifar100
 from Pruning_criterion.Taylor.Taylor_set_imagenet import taylor_imagenet
@@ -139,7 +140,7 @@ class testcase_base:
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
                 self.list_k = [9, 25, 20, 59, 40, 5, 58, 56, 24, 92, 116, 117, 57, 70, 116, 81, 64, 4, 32, 50, 108, 118, 88, 44, 60, 39, 114, 70, 112, 58, 12, 38, 205]
             else:
-                pass
+                raise NotImplementedError
             
         elif training_config["model"] == "Mobilenetv2":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
@@ -153,7 +154,11 @@ class testcase_base:
                 self.list_k = [31,10,12,20,97,120,25,67,157,132,154,36,103]
             elif pruning_config["Pruning"]["K_calculation"][1] == "Cifar10_K":
                 self.list_k = [14,5,12,42,15,9,83,139,92,134,223,209,82]
-
+        elif  training_config["model"] == "WideResNet":
+            if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
+                self.list_k = [1 for _ in range(12)]
+            else:
+                raise NotImplementedError
             
         # Netword preparation
         print("==> Preparing models")
@@ -177,6 +182,9 @@ class testcase_base:
             else:
                 self.net = VGG(num_class=self.classes)
                 self.teacher_net = VGG(num_class=self.classes)
+        elif  training_config["model"] == "WideResNet":
+            self.net = Wide_ResNet(28,20,0.3,num_classes=self.classes)
+            self.teacher_net = Wide_ResNet(28,20,0.3,num_classes=self.classes)
         if training_config["dataset"] != "Imagenet": 
             if "state_dict" in torch.load(pruning_config["Model"]["Pretrained_weight_path"]).keys():
                 self.net.load_state_dict(torch.load(pruning_config["Model"]["Pretrained_weight_path"])["state_dict"])
@@ -431,7 +439,7 @@ class testcase_base:
             self.pruning_ratio_list = [0 for _ in range(len(pruning_ratio_list_reference))]
             self.pruning_ratio_list[layer_idx] = 0.1
             network_layer_reference = self.get_layer_store(self.net)
-            for k in range(2,network_layer_reference[layer_idx].weight.shape[0]//2):
+            for k in range(1,network_layer_reference[layer_idx].weight.shape[0]//2):
                 self.net = deepcopy(vgg_testcase_net_reference)
                 network_layer_reference = self.get_layer_store(self.net)
                 

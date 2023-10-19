@@ -102,5 +102,5 @@ config_file_path = "Example/ResNet_config.yaml"
 testcase = ResNet_testcase(config_file_path)
 # testcase.config_pruning()
 # testcase.layerwise_pruning()
-# testcase.fullayer_pruning()
-testcase.k_search()
+testcase.fullayer_pruning()
+# testcase.k_search()

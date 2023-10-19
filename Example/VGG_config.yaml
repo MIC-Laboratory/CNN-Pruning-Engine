@@ -1,26 +1,26 @@
 # This is retrain config
 Functionality_pruning_experiment:
     Model:
-        Pretrained_weight_path: Weights/Cifar10/VGG16/Model@VGG16_ACC@95.26.pt
-        Pretrained_teacher_weight_path: Weights/Cifar10/VGG16/Model@VGG16_ACC@95.26.pt
+        Pretrained_weight_path: Weights/Cifar10/VGG16/Model@VGG16_ACC@94.18.pt
+        Pretrained_teacher_weight_path: Weights/Cifar10/VGG16/Model@VGG16_ACC@94.18.pt
             
         
     Pruning:
         Pruning_method:
-            L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            K-Taylor #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
             # K-Distance
         Pruning_ratio:
-            # [
-            #     0,0,0,0,0,0,0,0,0,0,
-            #     0,0,0
-            # ] # VGG16
             [
-                0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,
-                0.9,0.9,0.9
+                0,0,0,0,0,0,0,0,0,0,
+                0,0,0
             ] # VGG16
+            # [
+            #     0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,
+            #     0.9,0.9,0.9
+            # ] # VGG16
             # [0.62,0.67,0.67,0.67,0.67,0.72,0.67,0.68,0.76,0.64,0.58,0.60,0.61] # VGG16
             
         Pruning_mode:
@@ -45,9 +45,9 @@ Training_seting:
     weight_decay: 5.e-4
     warmup_epoch: 10
     dataset: 
-        Imagenet #Options Cifar10, Cifar100, Imagenet
+        Cifar10 #Options Cifar10, Cifar100, Imagenet
         # Cifar100
         # Imagenet
-    dataset_path: /home/zhenyulin/Training_data/imagenet-train
-    experiment_data_path: Experiment/VGG_imagenet
+    dataset_path: /home/zhenyulin/Training_data/
+    experiment_data_path: Experiment/VGG_Cifar10
     weight_path: Weights/

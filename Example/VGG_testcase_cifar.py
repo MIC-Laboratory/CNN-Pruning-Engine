@@ -23,7 +23,7 @@ class VGG_testcase(testcase_base):
         self.total_layer = 13
         self.tool_net = deepcopy(self.net)
         if self.pruning_method != "L1norm":
-            layer_store = self.get_layer_store()
+            layer_store = self.get_layer_store(self.net)
             self.pruner = pruning_engine(
                 self.pruning_method,
                 self.pruning_ratio,
@@ -117,6 +117,6 @@ class VGG_testcase(testcase_base):
 
 
 testcase = VGG_testcase("Example/VGG_config.yaml")
-testcase.config_pruning()
+# testcase.config_pruning()
 # testcase.layerwise_pruning()
-# testcase.fullayer_pruning()
+testcase.fullayer_pruning()
