@@ -1,17 +1,18 @@
 import torch
 from copy import deepcopy
 from .pruning_engine_base import pruning_engine_base
-from Pruning_criterion.L1norm.L1norm import L1norm
-from Pruning_criterion.Taylor.Taylor import Taylor
-from Pruning_criterion.KMean.L1norm.K_L1norm import K_L1norm
-from Pruning_criterion.KMean.Taylor.K_Taylor import K_Taylor
+from .Pruning_criterion.L1norm.L1norm import L1norm
+from .Pruning_criterion.Taylor.Taylor import Taylor
+from .Pruning_criterion.KMean.K_L1norm import K_L1norm
+from .Pruning_criterion.KMean.K_Taylor import K_Taylor
 class pruning_engine(pruning_engine_base):
     def __init__(self,pruning_method,pruning_ratio = 0,individual = False,**kwargs):
         super().__init__(pruning_ratio,pruning_method)
         
         
         if (self.pruning_method == "L1norm"):
-            self.pruning_criterion = L1norm
+            l1norm_pruning = L1norm()
+            self.pruning_criterion = l1norm_pruning.L1norm_pruning
         elif (self.pruning_method == "Taylor"):
             taylor_pruning = Taylor(
                 tool_net=kwargs["tool_net"],

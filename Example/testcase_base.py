@@ -25,8 +25,8 @@ from Models.Mobilenetv2 import MobileNetV2
 from Models.Vgg import VGG
 from Models.WideResNet import Wide_ResNet
 from Pruning_engine.pruning_engine import pruning_engine
-from Pruning_criterion.Taylor.Taylor_set_cifar import taylor_cifar10,taylor_cifar100
-from Pruning_criterion.Taylor.Taylor_set_imagenet import taylor_imagenet
+from Taylor_set_cifar import taylor_cifar10,taylor_cifar100
+from Taylor_set_imagenet import taylor_imagenet
 class testcase_base:
 
     def __init__(self,config_file_path,**kwargs):
@@ -121,9 +121,12 @@ class testcase_base:
             self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
             self.test_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"val"),transform=test_transform)
             self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=100)
-        if pruning_config["Pruning"]["K_calculation"][0]:
+        if pruning_config["Pruning"]["K_calculation"][0] and training_config["dataset"] == "Imagenet":
+
             self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
             self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=10)
+            self.test_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=10)
+        else:
             self.test_set = self.taylor_set
         self.classes = len(self.train_set.classes)
         g = torch.Generator()
@@ -158,7 +161,7 @@ class testcase_base:
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
                 self.list_k = [1 for _ in range(12)]
             else:
-                raise NotImplementedError
+                self.list_k = [1 for _ in range(12)]
             
         # Netword preparation
         print("==> Preparing models")
