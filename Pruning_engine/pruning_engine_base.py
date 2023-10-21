@@ -11,10 +11,10 @@ import torch
 #         self.mask_number = 0
 #         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-#     def base_remove_filter_by_index(self,weight,sorted_idx,bias=None,mean=None,var=None,linear=False):       
+#     def base_remove_filter_by_index(self,weight,remove_filter_idx,bias=None,mean=None,var=None,linear=False):       
 #         if mean is not None:
 #             mask_tensor = torch.tensor(self.mask_number,device=self.device)
-#             for idx in sorted_idx:
+#             for idx in remove_filter_idx:
 #                 weight[idx.item()] = mask_tensor
 #                 bias[idx.item()] = mask_tensor
 #                 mean[idx.item()] = mask_tensor 
@@ -24,7 +24,7 @@ import torch
 #             mask_tensor = torch.tensor(self.mask_number,device=self.device)
 #             mask_tensor = mask_tensor.repeat(list(weight[0].size()))
 #             bias_mask_tensor = torch.tensor(self.mask_number,device=self.device)
-#             for idx in sorted_idx:
+#             for idx in remove_filter_idx:
 #                 weight[idx.item()] = mask_tensor
 #                 bias[idx.item()] = bias_mask_tensor
             
@@ -32,15 +32,15 @@ import torch
 #         else:
 #             mask_tensor = torch.tensor(self.mask_number,device=self.device)
 #             mask_tensor = mask_tensor.repeat(list(weight[0].size()))
-#             for idx in sorted_idx:
+#             for idx in remove_filter_idx:
 #                 weight[idx.item()] = mask_tensor
             
 #             return weight
 
-#     def base_remove_kernel_by_index(self,weight,sorted_idx,linear=False):
+#     def base_remove_kernel_by_index(self,weight,remove_filter_idx,linear=False):
 #         mask_tensor = torch.tensor(self.mask_number,device=self.device)
 #         mask_tensor = mask_tensor.repeat(list(weight[0][0].size()))
-#         for idx in sorted_idx:
+#         for idx in remove_filter_idx:
 #             weight[:,idx.item()] = mask_tensor
         
 #         return weight
@@ -63,10 +63,10 @@ class pruning_engine_base:
         self.mask_number = 1e10
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    def base_remove_filter_by_index(self,weight,sorted_idx,bias=None,mean=None,var=None,linear=False):       
+    def base_remove_filter_by_index(self,weight,remove_filter_idx,bias=None,mean=None,var=None,linear=False):       
         if mean is not None:
             mask_tensor = torch.tensor(self.mask_number,device=self.device)
-            for idx in sorted_idx:
+            for idx in remove_filter_idx:
                 weight[idx.item()] = mask_tensor
                 bias[idx.item()] = mask_tensor
                 mean[idx.item()] = mask_tensor 
@@ -80,7 +80,7 @@ class pruning_engine_base:
             mask_tensor = torch.tensor(self.mask_number,device=self.device)
             mask_tensor = mask_tensor.repeat(list(weight[0].size()))
             bias_mask_tensor = torch.tensor(self.mask_number,device=self.device)
-            for idx in sorted_idx:
+            for idx in remove_filter_idx:
                 weight[idx.item()] = mask_tensor
                 bias[idx.item()] = bias_mask_tensor
             if linear is False:
@@ -93,7 +93,7 @@ class pruning_engine_base:
         else:
             mask_tensor = torch.tensor(self.mask_number,device=self.device)
             mask_tensor = mask_tensor.repeat(list(weight[0].size()))
-            for idx in sorted_idx:
+            for idx in remove_filter_idx:
                 weight[idx.item()] = mask_tensor
             if linear is False:
                 nonMaskRows_weight = abs(torch.abs(weight).sum(dim=(1,2,3)) - torch.abs(mask_tensor).sum(dim=(0,1,2))) > self.mask_number
@@ -102,12 +102,12 @@ class pruning_engine_base:
             weight = weight[nonMaskRows_weight]
             return weight
 
-    def base_remove_kernel_by_index(self,weight,sorted_idx,linear=False):
+    def base_remove_kernel_by_index(self,weight,remove_filter_idx,linear=False):
         mask_tensor = torch.tensor(self.mask_number,device=self.device)
         mask_tensor = mask_tensor.repeat(list(weight[0][0].size()))
-        for idx in sorted_idx:
+        for idx in remove_filter_idx:
             weight[:,idx.item()] = mask_tensor
-        if (len(sorted_idx) != 0 and linear == False):
+        if (len(remove_filter_idx) != 0 and linear == False):
             nonMaskRows_weight = abs(torch.abs(weight).sum(dim=(2,3)) - torch.abs(mask_tensor).sum(dim=(0,1))) > 0.0001 
             weight = weight[:,nonMaskRows_weight[0]]
         if (linear != False):

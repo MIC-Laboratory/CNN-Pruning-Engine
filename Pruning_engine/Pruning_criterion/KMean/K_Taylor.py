@@ -3,16 +3,20 @@ import os
 import sys
 
 from .Kmean_base import Kmean_base
+from ..Taylor.Taylor import Taylor
 
-class K_Taylor(Kmean_base):
-    def __init__(self,list_k,pruning_ratio,taylor_pruning):
+class K_Taylor(Kmean_base,Taylor):
+    def __init__(self,list_k,pruning_ratio,tool_net,taylor_loader,total_layer,total_sample_size,hook_function,layer_store_grad_featuremap):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.list_k = list_k
         self.pruning_ratio = pruning_ratio
-        self.taylor_pruning = taylor_pruning
+        Taylor.__init__(tool_net,taylor_loader,total_layer,total_sample_size,hook_function)
+        self.clear_mean_gradient_feature_map()
+        self.Taylor_add_gradient()
+        self.store_grad_layer(layer_store_grad_featuremap)
     def Kmean_Taylor(self,layer):
         weight = layer.weight.data.clone()
-        sort_index = self.taylor_pruning(layer)
+        sort_index = self.Taylor_pruning(layer)
         k = layer.k_value
 
         output_channel = int(weight.shape[0] * self.pruning_ratio)

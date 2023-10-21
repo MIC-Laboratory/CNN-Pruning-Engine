@@ -8,16 +8,13 @@ from torch.nn import BatchNorm2d
 from torch.nn import Linear
 
 from testcase_base import testcase_base
-from Weapon.WarmUpLR import WarmUpLR
-from utils import frozen_layer,deFrozen_layer,compare_models
 from copy import deepcopy
 from thop import profile
 from torch.utils.tensorboard import SummaryWriter
-
 sys.path.append(os.path.join(os.getcwd()))
 from Pruning_engine.pruning_engine import pruning_engine
 
-class VGG_testcase(testcase_base):
+class VGG_testcase_imagenet(testcase_base):
     def __init__(self,config_file_path):
         super().__init__(config_file_path)
         self.total_layer = 13
@@ -44,22 +41,22 @@ class VGG_testcase(testcase_base):
                 if layers[layer].in_channels == 3:
                     self.pruner.set_pruning_ratio(self.pruning_ratio_list[pruning_ratio_idx])
                     self.pruner.set_layer(layers[layer],main_layer=True)
-                    sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-                    layers[layer] = self.pruner.remove_filter_by_index(sorted_idx)
+                    remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+                    layers[layer] = self.pruner.remove_filter_by_index(remove_filter_idx)
                 else:
                     self.pruner.set_pruning_ratio(self.pruning_ratio_list[pruning_ratio_idx])
                     self.pruner.set_layer(layers[layer],main_layer=True)
-                    sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
+                    remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
                     layers[layer] = self.pruner.remove_conv_filter_kernel()
                 pruning_ratio_idx+=1
             elif isinstance(layers[layer], BatchNorm2d):
                 self.pruner.set_layer(layers[layer])
-                sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-                layers[layer] = self.pruner.remove_Bn(sorted_idx)
+                remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+                layers[layer] = self.pruner.remove_Bn(remove_filter_idx)
         linear_layer = self.net.classifier[0]
         self.pruner.set_layer(linear_layer)
-        sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-        self.net.classifier[0] = self.pruner.remove_kernel_by_index(sorted_idx=sorted_idx,linear=True)
+        remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+        self.net.classifier[0] = self.pruner.remove_kernel_by_index(remove_filter_idx=remove_filter_idx,linear=True)
         
 
     
@@ -85,7 +82,7 @@ class VGG_testcase(testcase_base):
 
 
 
-testcase = VGG_testcase("Example/VGG_config.yaml")
+testcase = VGG_testcase_imagenet("Example/VGG_config.yaml")
 # testcase.config_pruning()
 # testcase.layerwise_pruning()
 testcase.fullayer_pruning()

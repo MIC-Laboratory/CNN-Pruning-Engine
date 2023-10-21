@@ -9,11 +9,9 @@ from torch.nn import BatchNorm2d
 from torch.nn import Linear
 
 from testcase_base import testcase_base
-from Weapon.WarmUpLR import WarmUpLR
-from utils import frozen_layer,deFrozen_layer,compare_models
 sys.path.append(os.path.join(os.getcwd()))
 from Pruning_engine.pruning_engine import pruning_engine
-class Mobilenet_testcase(testcase_base):
+class Mobilenet_testcase_cifar(testcase_base):
     def __init__(self,config_file_path):
         super().__init__(config_file_path)
         self.total_layer = 17
@@ -36,24 +34,24 @@ class Mobilenet_testcase(testcase_base):
         layers = self.net.layers
         for layer in range(len(layers)):
             self.pruner.set_layer(layers[layer].conv2,main_layer=True)
-            sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-            layers[layer].conv2 = self.pruner.remove_filter_by_index(sorted_idx,group=True)
+            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+            layers[layer].conv2 = self.pruner.remove_filter_by_index(remove_filter_idx,group=True)
             
             self.pruner.set_layer(layers[layer].bn2)
-            sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-            layers[layer].bn2 = self.pruner.remove_Bn(sorted_idx=sorted_idx)
+            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+            layers[layer].bn2 = self.pruner.remove_Bn(remove_filter_idx=remove_filter_idx)
 
             self.pruner.set_layer(layers[layer].conv1)
-            sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-            layers[layer].conv1 = self.pruner.remove_filter_by_index(sorted_idx)
+            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+            layers[layer].conv1 = self.pruner.remove_filter_by_index(remove_filter_idx)
 
             self.pruner.set_layer(layers[layer].bn1)
-            sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-            layers[layer].bn1 = self.pruner.remove_Bn(sorted_idx=sorted_idx)
+            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+            layers[layer].bn1 = self.pruner.remove_Bn(remove_filter_idx=remove_filter_idx)
             
             self.pruner.set_layer(layers[layer].conv3)
-            sorted_idx = self.pruner.get_sorted_idx()["current_layer"]
-            layers[layer].conv3 = self.pruner.remove_kernel_by_index(sorted_idx)
+            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
+            layers[layer].conv3 = self.pruner.remove_kernel_by_index(remove_filter_idx)
         
 
     
@@ -78,7 +76,7 @@ class Mobilenet_testcase(testcase_base):
         return result
 config_file_path = "Example/Mobilenet_config.yaml"
 
-mb_testcase = Mobilenet_testcase(config_file_path)
+mb_testcase = Mobilenet_testcase_cifar(config_file_path)
 print(mb_testcase.net)
 mb_testcase.pruning()
 mb_testcase.retraining()

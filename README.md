@@ -108,20 +108,20 @@ Let say if I want the first conv2d layer prune 10% of the filter, the following 
 pruned_layer = model.features[0]
 pruner.set_pruning_ratio(0.1)
 pruner.set_layer(pruned_layer,main_layer=True)
-sorted_idx = pruner.get_sorted_idx()["current_layer"]
-model.features[0] = pruner.remove_filter_by_index(sorted_idx)
+remove_filter_idx = pruner.get_remove_filter_idx()["current_layer"]
+model.features[0] = pruner.remove_filter_by_index(remove_filter_idx)
 
 pruned_layer = model.features[1]
 pruner.set_pruning_ratio(0.1)
 pruner.set_layer(pruned_layer)
-sorted_idx = pruner.get_sorted_idx()["current_layer"]
-model.features[1] = pruner.remove_Bn(sorted_idx)
+remove_filter_idx = pruner.get_remove_filter_idx()["current_layer"]
+model.features[1] = pruner.remove_Bn(remove_filter_idx)
 
 pruned_layer = model.features[3]
 pruner.set_pruning_ratio(0.1)
 pruner.set_layer(pruned_layer)
-sorted_idx = pruner.get_sorted_idx()["current_layer"]
-model.features[3] = pruner.remove_kernel_by_index(sorted_idx)
+remove_filter_idx = pruner.get_remove_filter_idx()["current_layer"]
+model.features[3] = pruner.remove_kernel_by_index(remove_filter_idx)
 
 ```
 

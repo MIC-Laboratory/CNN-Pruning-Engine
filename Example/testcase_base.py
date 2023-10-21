@@ -20,6 +20,7 @@ from utils import frozen_layer,deFrozen_layer,compare_models,seed_worker
 from thop import profile,clever_format
 
 sys.path.append(os.path.join(os.getcwd()))
+from Weapon.WarmUpLR import WarmUpLR
 from Models.Resnet import ResNet101
 from Models.Mobilenetv2 import MobileNetV2
 from Models.Vgg import VGG
