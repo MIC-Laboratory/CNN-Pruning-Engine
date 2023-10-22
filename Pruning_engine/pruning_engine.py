@@ -5,8 +5,23 @@ from .Pruning_criterion.L1norm.L1norm import L1norm
 from .Pruning_criterion.Taylor.Taylor import Taylor
 from .Pruning_criterion.KMean.K_L1norm import K_L1norm
 from .Pruning_criterion.KMean.K_Taylor import K_Taylor
+
+
 class pruning_engine(pruning_engine_base):
     def __init__(self,pruning_method,pruning_ratio = 0,individual = False,**kwargs):
+        """
+        Initialize the pruning engine.
+
+        Args:
+            pruning_method: The pruning method to be used.
+            pruning_ratio: The pruning ratio to be applied.
+
+        Return:
+            None
+
+        Logic:
+            Initialize the pruning engine with the specified pruning method and pruning ratio.
+        """
         super().__init__(pruning_ratio,pruning_method)
         
         
@@ -54,6 +69,19 @@ class pruning_engine(pruning_engine_base):
 
 
     def set_layer(self,layer,main_layer=False):
+        """
+        Set the current layer for pruning.
+
+        Args:
+            layer: The layer to be pruned.
+
+        Return:
+            None
+
+        Logic:
+            Set the current layer to the given layer for further pruning operations.
+        """
+
         
         try:
             self.copy_layer = deepcopy(layer)
@@ -78,6 +106,18 @@ class pruning_engine(pruning_engine_base):
             return False
     
     def set_pruning_ratio(self,pruning_ratio):
+        """
+        Set the pruning ratio for the current layer.
+
+        Args:
+            pruning_ratio: The pruning ratio to be applied to the current layer.
+
+        Return:
+            None
+
+        Logic:
+            Set the pruning ratio for the current layer to the specified value.
+        """
         self.pruning_ratio = 1-pruning_ratio
         if "K_L1norm_pruning" in self.__dict__:
             self.K_L1norm_pruning.set_pruning_ratio(1-pruning_ratio)
@@ -85,9 +125,34 @@ class pruning_engine(pruning_engine_base):
             self.K_Taylor_pruning.set_pruning_ratio(1-pruning_ratio)
 
     def get_remove_filter_idx(self):
+        """
+        Get the indices of removed filters.
+
+        Args:
+            None
+
+        Return:
+            remove_filter_idx: The indices of filters removed during pruning.
+
+        Logic:
+            Get the indices of filters that have been removed during the pruning process.
+        """
         return self.remove_filter_idx_history
 
     def remove_conv_filter_kernel(self):
+        """
+        Remove filters and corresponding kernels from the convolutional layer.
+
+        Args:
+            None
+
+        Return:
+            None
+
+        Logic:
+            Remove filters and corresponding kernels from the current convolutional layer based on the pruning ratio.
+        """
+
         if self.copy_layer.bias is not None:
             self.copy_layer.weight.data,self.copy_layer.bias.data = self.base_remove_filter_by_index(weight=self.copy_layer.weight.data.clone(),remove_filter_idx=self.remove_filter_idx_history["current_layer"],bias=self.copy_layer.bias.data.clone())
             self.copy_layer.weight.data = self.base_remove_kernel_by_index(weight=self.copy_layer.weight.data.clone(), remove_filter_idx=self.remove_filter_idx_history["previous_layer"])
@@ -101,7 +166,19 @@ class pruning_engine(pruning_engine_base):
         
         return self.copy_layer
     
-    def remove_Bn(self,remove_filter_idx):        
+    def remove_Bn(self,remove_filter_idx):
+        """
+        Remove filters from the Batch Normalization layer.
+
+        Args:
+            None
+
+        Return:
+            None
+
+        Logic:
+            Remove filters from the Batch Normalization layer based on the pruning ratio.
+        """        
         self.copy_layer.weight.data,\
         self.copy_layer.bias.data,\
         self.copy_layer.running_mean.data,\
@@ -116,6 +193,18 @@ class pruning_engine(pruning_engine_base):
         return self.copy_layer
     
     def remove_filter_by_index(self,remove_filter_idx,linear=False,group=False):
+        """
+        Remove filters from the current layer based on the given indices.
+
+        Args:
+            idx: Indices of filters to be removed.
+
+        Return:
+            None
+
+        Logic:
+            Remove filters from the current layer based on the given indices.
+        """
         if self.copy_layer.bias is not None:
 
             self.copy_layer.weight.data,\
@@ -143,6 +232,18 @@ class pruning_engine(pruning_engine_base):
         return self.copy_layer
 
     def remove_kernel_by_index(self,remove_filter_idx,linear=False):
+        """
+        Remove kernels from the current layer based on the given indices.
+
+        Args:
+            idx: Indices of kernels to be removed.
+
+        Return:
+            None
+
+        Logic:
+            Remove kernels from the current layer based on the given indices.
+        """
         self.copy_layer.weight.data = self.base_remove_kernel_by_index(
             weight=self.copy_layer.weight.data.clone(),
             remove_filter_idx=remove_filter_idx,

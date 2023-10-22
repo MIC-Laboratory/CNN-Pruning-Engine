@@ -5,7 +5,21 @@ from copy import deepcopy
 from tqdm import tqdm
 
 class Taylor:
+
     def __init__(self,tool_net,taylor_loader,total_layer,total_sample_size,hook_function):
+        """
+        Args: 
+        - tool_net: A neural network model.
+        - taylor_loader: A data loader for performing forward and backward propagation
+                        so the hook_function can hook the feature map and gradient of each filter.
+        - total_layer: The total number of layers in the model.
+        - total_sample_size: The total size of the taylor_loader.
+        - hook_function: A function to hook the feature map and gradient.
+
+        LOGIC OF FUNCTION:
+        - Initializes the Taylor object with the provided parameters.
+        - Stores the inputs as instance variables.
+        """
         self.mean_feature_map = ["" for i in range(total_layer)]
         self.mean_gradient = ["" for i in range(total_layer)]
         self.taylor_loader = taylor_loader
@@ -15,6 +29,13 @@ class Taylor:
         self.hook_function = hook_function
         
     def Taylor_add_gradient(self):
+        """
+        Args: None
+        Return: None
+
+        LOGIC OF FUNCTION:
+        - Computes and stores the mean gradient and feature map for each layer in the network.
+        """
         feature_map_layer = 0
         taylor_loader_iter = iter(self.taylor_loader)
         gradient_layer = self.total_layer-1
@@ -68,6 +89,15 @@ class Taylor:
                 pbar.set_description_str(f"training time: {time.time()-start}")
     
     def store_grad_layer(self,layers):
+        """
+        Args:
+        - layers: A list of layer objects.
+
+        Return: None
+
+        LOGIC OF FUNCTION:
+        - Stores the computed mean gradient and feature map in each layer object in the given list.
+        """ 
         # copy_layers = deepcopy(layers)
         for layer in range(len(layers)):
             layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer]
@@ -76,12 +106,32 @@ class Taylor:
 
         # return copy_layers
     def clear_mean_gradient_feature_map(self):
+        """
+        Args: None
+        Return: None
+
+        LOGIC OF FUNCTION:
+        - Clears the stored mean gradient and feature map values in each layer.
+        """
         self.mean_gradient = ["" for _ in range(self.total_layer)]
         self.mean_feature_map = ["" for _ in range(self.total_layer)]
 
 
     def train(self,network,optimizer,dataloader_iter,criterion):
-    
+        """
+        Args:
+        - network: The neural network model to be trained.
+        - optimizer: An optimizer object for updating the model parameters.
+        - dataloader_iter: An iterator for the training data.
+        - criterion: The loss function used for training.
+
+        Return: None
+
+        LOGIC OF FUNCTION:
+        - Performs the training loop for the given number of iterations.
+        - Updates the model parameters using the optimizer based on the computed loss.
+        """
+
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         network.train()
         network.to(device)
@@ -94,6 +144,19 @@ class Taylor:
 
     def Taylor_pruning(self,layer):
         
+        """
+        Args:
+        - layer: A layer object.
+
+        Return:
+        - sorted_indices: A tensor containing the sorted indices of the layer's importance values.
+
+        LOGIC OF FUNCTION:
+        - Computes the importance values for the layer based on the stored mean gradient and feature map.
+        - Sorts the importance values in descending order and returns the sorted indices.
+        """
+
+
         criteria_for_layer = torch.mul(layer.gradient,layer.feature_map)
         criteria_for_layer = criteria_for_layer.view([*criteria_for_layer.shape[:2], -1])
         criteria_for_layer = criteria_for_layer.mean(dim=2)

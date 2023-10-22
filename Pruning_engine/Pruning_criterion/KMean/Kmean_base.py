@@ -5,9 +5,36 @@ from sklearn.decomposition import PCA
 
 
 class Kmean_base:
-    def __init__(self):
-        pass
     def Kmean(self,weight,sort_index,k,output_channel):
+        """
+        Apply K-means clustering to perform filter pruning based on similarity in weight vectors.
+
+        Args:
+            weight: The weight tensor of the layer to be pruned.
+            sort_index: The sorted indices of the weights.
+            k: The number of clusters for K-means.
+            output_channel: The number of output channels.
+
+        Return:
+            pruning_index_group: The indices of filters to be pruned.
+
+        Logic:
+            1. Determine the number of filters to be removed based on the output channel size.
+            2. Reshape the weight tensor into a 2D matrix.
+            3. Perform dimensionality reduction using PCA to reduce the dimensionality of weight vectors.
+            4. Apply K-means clustering to the reduced weight vectors.
+            5. Group the filters based on the K-means labels obtained.
+            6. Prune filters from each group based on their importance and the required pruning amount.
+                - Iterate over each group and calculate the pruning amount 
+                  by multiplying the removal ratio with the total number of filters in the group.
+                - Sort the indices of each group based on the specified sorted order, 
+                  ensuring the original indices are preserved.
+                - Select filters for pruning by popping from the end of the sorted indices until the 
+                  desired pruning amount is reached.
+            7. Return the indices of the pruned filters.
+
+        
+        """
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         num_filter = weight.data.size()[0]
         remove_filter = num_filter - output_channel

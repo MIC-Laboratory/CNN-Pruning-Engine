@@ -1,6 +1,14 @@
 # Pruning Engine
 ## Introduction
 This project is a pruning engine for neural network models. It provides a set of tools and methods for pruning the weights and filters of neural networks. Pruning is a technique used to reduce the size of neural networks by removing unnecessary parameters, improving model efficiency, and reducing computational resources required for model inference.
+
+## Experiment Result
+<p align="center">
+<img src="Images/Experiment Result.png" alt="Experiment Result" width=70%>
+<br>
+<i>Figure 1: Experiment Result</i>
+</p>
+
 ## Installation
 To install the project, follow these steps:
 
@@ -35,8 +43,6 @@ model.to(device)
 ```
 4. Based on the structure of the Neural Network, choose the layer that needs to be pruned. E.g. [VGG16](https://arxiv.org/abs/1409.1556)[[1]]()
 
-VGG16 Configuration
-<img src="Images/VGG16.png" width="80%" />
 
 
 VGG16 Configuration in Python Code
@@ -51,53 +57,7 @@ VGG(
     (4): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)                                                                                                                                      
     (5): ReLU(inplace=True)                                                                                                                                                                                                   
     (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)                                                                                                                                           
-    (7): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))                                                                                                                                                   
-    (8): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)                                                                                                                                     
-    (9): ReLU(inplace=True)                                                                                                                                                                                                   
-    (10): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))                                                                                                                                                 
-    (11): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)                                                                                                                                    
-    (12): ReLU(inplace=True)                                                                                                                                                                                                  
-    (13): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)                                                                                                                                          
-    (14): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))                                                                                                                                                 
-    (15): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)                                                                                                                                    
-    (16): ReLU(inplace=True)                                                                                                                                                                                                  
-    (17): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))                                                                                                                                                 
-    (18): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)                                                                                                                                    
-    (19): ReLU(inplace=True)                                                                                                                                                                                                  
-    (20): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))                                                                                                                                                 
-    (21): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)                                                                                                                                    
-    (22): ReLU(inplace=True)                                                                                                                                                                                                  
-    (23): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)                                                                                                                                          
-    (24): Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (25): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (26): ReLU(inplace=True)
-    (27): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (28): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (29): ReLU(inplace=True)
-    (30): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (31): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (32): ReLU(inplace=True)
-    (33): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-    (34): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (35): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (36): ReLU(inplace=True)
-    (37): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (38): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (39): ReLU(inplace=True)
-    (40): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-    (41): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (42): ReLU(inplace=True)
-    (43): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-  )
-  (avgpool): AdaptiveAvgPool2d(output_size=(7, 7))
-  (classifier): Sequential(
-    (0): Linear(in_features=25088, out_features=4096, bias=True)
-    (1): ReLU(inplace=True)
-    (2): Dropout(p=0.5, inplace=False)
-    (3): Linear(in_features=4096, out_features=4096, bias=True)
-    (4): ReLU(inplace=True)
-    (5): Dropout(p=0.5, inplace=False)
-    (6): Linear(in_features=4096, out_features=1000, bias=True)
+    ...
   )
 )
 ```
@@ -140,49 +100,48 @@ The pruning engine supports multiple pruning methods, including:
 - Taylor pruning: Measures weight importance using the Taylor expansion and removes less important weights.
 
 ## Project Structure
-The project has the following structure:
-- Pruning_engine/: Contains the source code of the pruning engine.
-- Models/: Contains neural network models and related modules.
-- Pruning_criterion/: Contains different pruning criteria implementation.
-- Example/: Contains example test cases for pruning and retraining on various models.
-- Weapon/: Contains utility classes and functions used by the pruning engine.
+### Pruning Engine Architecture
+<p align="center">
+<img src="Images/pruning_engine_classes.png" alt="Pruning Engine UML diagram" width=70%>
+<br>
+<i>Figure 2: Pruning Engine UML diagram</i>
+</p>
 
-```bash
-├── Pruning_engine/
-│   ├── pruning_engine.py
-│   ├── pruning_engine_base.py
-│   └── ...
-├── Models/
-│   ├── Resnet.py
-│   ├── Vgg.py
-│   ├── Mobilenetv2.py
-│   └── ...
-├── Pruning_criterion/
-│   ├── L1norm/
-│   │   └── L1norm.py
-│   ├── KMean/
-│   │   ├── Kmean_base.py
-│   │   └── ...
-│   ├── Taylor/
-│   │   ├── K_Taylor.py
-│   │   └── ...
-│   └── ...
-├── Example/
-│   ├── utils.py
-│   ├── Mobilenet_testcase.py
-│   ├── testcase_base.py
-│   ├── VGG_testcase.py
-│   ├── ResNet_testcase.py
-│   └── ...
-├── Weapon/
-│   ├── WarmUpLR.py
-│   ├── RandomMixUp.py
-│   └── ...
-├── LICENSE
-├── README.md
-├── requirements.txt
-└── ...
-```
+| Functions Name | Description |
+| --- | --- |
+| Pruning_base | Provides basic pruning functionalities such as removing filters by index and kernels by index. |
+| Kmean_base | Offers basic K-means clustering pruning algorithms. Given weights, k, and a sorting method within each group, it returns the indices of filters that are not important. |
+| Pruning_engine | Main file for the pruning engine, integrating all the pruning methods. |
+| K_L1norm | Implements K-means clustering to cluster similar CNN filters and uses L1 norm to sort the filters within each cluster. |
+| K_Taylor | Applies K-means clustering to cluster similar filters and uses Taylor estimation to sort the filters within each cluster. |
+| L1norm | Pruning method that considers filters with the least magnitude as non-important. |
+| Taylor | Pruning method that computes the product of feature maps and gradients for each filter, with smaller values indicating less importance. |
+
+### Add your custom pruning criterion, 
+
+1. Create a Python file within the "pruning_criterion" folder, containing your pruning algorithm. This file should include a function that accepts the layer weight as a parameter and return ranks the filters based on their importance using your specific algorithm.
+2. In the pruning engine file, follow the structure of other pruning methods. In the \_\_init\_\_ function of the Pruning Engine, initialize your distinct pruning algorithm, similar to the way other methods are initialized.
+
+### Test Case Architecture
+<p align="center">
+<img src="Images/Example_classes.png" alt="Testcase UML diagram" width=100%>
+<br>
+<i>Figure 3: Testcase UML diagram</i>
+</p>
+
+### Adding a custom network.
+To incorporate your own network for the pruning experiment, 
+
+1. Place your model file in the "Models" folder, and then initialize the new network in "testcase_base.py".
+2. Create a new Python file in the "Example" folder for pruning your model, along with the corresponding config file. This file should include the following fully implemented functions: pruning, hook_function, and get_layer_store. These functions are essential for implementing the K-means and Taylor-related pruning methods. You can refer to the examples of other networks to implement them.
+
+Here is a brief description of each function:
+
+| Function Name | Description |
+| --- | --- |
+| pruning | This function is used to remove filters and kernels from the CNN. It does not have any return values or parameters. |
+| hook_function | This function allows you to hook the feature map and gradient of filters in the CNN. It is required for the Taylor relative pruning algorithm. |
+| get_layer_store | This function specifies the layers used to store additional pruning information, such as the number of clusters in the K-means algorithm. These layers should be the same ones that you want to hook the feature map and gradient to. |
 
 ## Reference
 <a id="1">[1]</a> Simonyan, K. and Zisserman, A., 2014. Very deep convolutional networks for large-scale image recognition. arXiv preprint arXiv:1409.1556.
