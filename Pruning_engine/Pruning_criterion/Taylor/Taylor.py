@@ -20,10 +20,10 @@ class Taylor:
         - Initializes the Taylor object with the provided parameters.
         - Stores the inputs as instance variables.
         """
-        self.mean_feature_map = ["" for i in range(total_layer)]
-        self.mean_gradient = ["" for i in range(total_layer)]
+        self.total_layer = total_layer * 2
+        self.mean_feature_map = ["" for i in range(self.total_layer)]
+        self.mean_gradient = ["" for i in range(self.total_layer)]
         self.taylor_loader = taylor_loader
-        self.total_layer = total_layer
         self.total_sample_size = total_sample_size
         self.tool_net = tool_net
         self.hook_function = hook_function
@@ -41,39 +41,42 @@ class Taylor:
         gradient_layer = self.total_layer-1
         def forward_hook(model, input, output):
             nonlocal feature_map_layer
+            output_clone = deepcopy(output.detach())
             if (feature_map_layer >= self.total_layer):
                 feature_map_layer = 0
             if self.mean_feature_map[feature_map_layer] == "":
-                if len(self.taylor_loader) > 1:
-                    self.mean_feature_map[feature_map_layer] = torch.sum(output.detach(),dim=(0))/(self.total_sample_size)
-                else:
-                    self.mean_feature_map[feature_map_layer] = torch.mean(output.detach(),dim=(0))
+                self.mean_feature_map[feature_map_layer] = output_clone
+                # if len(self.taylor_loader) > 1:
+                #     self.mean_feature_map[feature_map_layer] = torch.sum(output.detach(),dim=(0))/(self.total_sample_size)
+                # else:
+                #     self.mean_feature_map[feature_map_layer] = torch.mean(output.detach(),dim=(0))
             else:
-                if len(self.taylor_loader) > 1:
-                    self.mean_feature_map[feature_map_layer] = torch.add(self.mean_feature_map[feature_map_layer],torch.sum(output.detach(),dim=(0))/(self.total_sample_size))
-                else:
-                    self.mean_feature_map[feature_map_layer] = torch.add(self.mean_feature_map[feature_map_layer],output.detach()/(self.total_sample_size))
+                self.mean_feature_map[feature_map_layer] = torch.concat((self.mean_feature_map[feature_map_layer],output_clone),axis=0)
+                # if len(self.taylor_loader) > 1:
+                #     self.mean_feature_map[feature_map_layer] = torch.add(self.mean_feature_map[feature_map_layer],torch.sum(output.detach(),dim=(0))/(self.total_sample_size))
+                # else:
+                #     self.mean_feature_map[feature_map_layer] = torch.add(self.mean_feature_map[feature_map_layer],output.detach()/(self.total_sample_size))
             feature_map_layer+=1
         def backward_hook(model,input,output):
-            if not hasattr(output, "requires_grad") or not output.requires_grad:
-                # You can only register hooks on tensor requires grad.
-                return
-            def _store_grad(grad):
-                nonlocal gradient_layer
-                if (gradient_layer < 0):
-                    gradient_layer = self.total_layer-1
-                if self.mean_gradient[gradient_layer] == '':
-                    if len(self.taylor_loader) > 1:
-                        self.mean_gradient[gradient_layer] = torch.sum(grad.detach(),dim=(0))/(self.total_sample_size)
-                    else:
-                        self.mean_gradient[gradient_layer] = torch.mean(grad.detach(),dim=(0))
-                else:
-                    if len(self.taylor_loader) > 1:
-                        self.mean_gradient[gradient_layer] = torch.add(self.mean_gradient[gradient_layer],torch.sum(grad.detach(),dim=(0))/(self.total_sample_size))
-                    else:
-                        self.mean_gradient[gradient_layer] = torch.add(self.mean_gradient[gradient_layer],grad.detach()/(self.total_sample_size))
-                gradient_layer-=1
-            output.register_hook(_store_grad)
+            grad = deepcopy(output[0].detach())
+            
+
+            nonlocal gradient_layer
+            if (gradient_layer < 0):
+                gradient_layer = self.total_layer-1
+            if self.mean_gradient[gradient_layer] == '':
+                self.mean_gradient[gradient_layer] = grad
+                # if len(self.taylor_loader) > 1:
+                #     self.mean_gradient[gradient_layer] = torch.sum(grad.detach(),dim=(0))/(self.total_sample_size)
+                # else:
+                #     self.mean_gradient[gradient_layer] = torch.mean(grad.detach(),dim=(0))
+            else:
+                self.mean_gradient[gradient_layer] = torch.concat((self.mean_gradient[gradient_layer],grad),axis=0)
+                # if len(self.taylor_loader) > 1:
+                #     self.mean_gradient[gradient_layer] = torch.add(self.mean_gradient[gradient_layer],torch.sum(grad.detach(),dim=(0))/(self.total_sample_size))
+                # else:
+                #     self.mean_gradient[gradient_layer] = torch.add(self.mean_gradient[gradient_layer],grad.detach()/(self.total_sample_size))
+            gradient_layer-=1
         self.tool_net = self.hook_function(self.tool_net,forward_hook,backward_hook)
         
 
@@ -99,9 +102,9 @@ class Taylor:
         - Stores the computed mean gradient and feature map in each layer object in the given list.
         """ 
         # copy_layers = deepcopy(layers)
-        for layer in range(len(layers)):
-            layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer]
-            layers[layer].__dict__["gradient"] = self.mean_gradient[layer]
+        for layer in range(0,len(layers),2):
+            layers[layer].__dict__["feature_map"] = self.mean_feature_map[layer] + self.mean_feature_map[layer+1]
+            layers[layer].__dict__["gradient"] = self.mean_gradient[layer] + self.mean_gradient[layer+1]
 
 
         # return copy_layers
@@ -115,7 +118,7 @@ class Taylor:
         """
         self.mean_gradient = ["" for _ in range(self.total_layer)]
         self.mean_feature_map = ["" for _ in range(self.total_layer)]
-
+        gc.collect()
 
     def train(self,network,optimizer,dataloader_iter,criterion):
         """
@@ -157,17 +160,18 @@ class Taylor:
         """
 
 
-        criteria_for_layer = torch.mul(layer.gradient,layer.feature_map)
-        criteria_for_layer = criteria_for_layer.view([*criteria_for_layer.shape[:2], -1])
-        criteria_for_layer = criteria_for_layer.mean(dim=2)
-        criteria_for_layer = torch.abs(criteria_for_layer)
-        importance = criteria_for_layer.mean(dim=1) 
+        criteria_for_layer = (layer.feature_map*layer.gradient).abs().mean(-1).mean(-1).mean(0)
+        # criteria_for_layer = criteria_for_layer.view([*criteria_for_layer.shape[:2], -1])
+        criteria_for_layer = criteria_for_layer / (torch.linalg.norm(criteria_for_layer) + 1e-8)
+        importance = criteria_for_layer
+        # importance = criteria_for_layer.mean(dim=1) 
         """
         That's the old algorithm, it seems not working, comment out
         """
         # criteria_for_layer = torch.abs(criteria_for_layer)
         # criteria_for_layer = criteria_for_layer / (torch.linalg.norm(criteria_for_layer) + 1e-8)
         
-        # importance = torch.mean(criteria_for_layer,dim=(1,2))
+        # importance = torch.mean(criteria_for_layer,dim=1)
         sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+        self.clear_mean_gradient_feature_map()
         return sorted_idx

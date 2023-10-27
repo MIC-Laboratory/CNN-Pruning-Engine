@@ -17,10 +17,10 @@ class VGG(nn.Module):
         self.features = self._make_layers(cfg[vgg_name])
         self.classifier = nn.Sequential(
             nn.Linear(512, 4096),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Dropout(),
             nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Dropout(),
             nn.Linear(4096, num_class)
         )
@@ -40,7 +40,7 @@ class VGG(nn.Module):
             else:
                 layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
                            nn.BatchNorm2d(x),
-                           nn.ReLU(inplace=True)]
+                           nn.ReLU(inplace=False)]
                 in_channels = x
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)

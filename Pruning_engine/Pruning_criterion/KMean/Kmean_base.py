@@ -1,9 +1,12 @@
 from sklearn.cluster import KMeans
 import torch
 import copy
+import os
 from sklearn.decomposition import PCA
-
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics import silhouette_score
+from tqdm import tqdm
 class Kmean_base:
     def Kmean(self,weight,sort_index,k,output_channel):
         """
@@ -35,21 +38,25 @@ class Kmean_base:
 
         
         """
+        
+        import time
+        start = time.time()
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         num_filter = weight.data.size()[0]
         remove_filter = num_filter - output_channel
-        
+        if k == 1:
+            return sort_index[output_channel:]
+            
         
         m_weight_vector = weight.reshape(num_filter, -1).cpu()
         pca = PCA(n_components=0.8).fit(m_weight_vector)
         m_weight_vector = pca.fit_transform(m_weight_vector)
         
-        
         n_clusters = k
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=0,n_init='auto').fit(m_weight_vector)
         
-        
-        kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(m_weight_vector)
-        print("K:",n_clusters)
+        # print("K:",n_clusters)
         labels = kmeans.labels_
         group = [[] for _ in range(n_clusters)]
         for idx in range(num_filter):
@@ -69,10 +76,12 @@ class Kmean_base:
             100*(len(filter_index_group)/total_left_filter)) for filter_index_group in group]
         pruning_amount_group = [
             int(remove_filter*(percentage/100)) for percentage in percentage_group]
-        sorted_idx_origin = sort_index
+        sorted_idx_origin = copy.deepcopy(sort_index)
         for counter, filter_index_group in enumerate(group, 0):
             temp = copy.deepcopy(filter_index_group)
-            temp.sort(key=lambda e: (list(sorted_idx_origin).index(e),e) if e in list(sorted_idx_origin)  else (len(list(sorted_idx_origin)),e))
+            idx_dict = {e: i for i, e in enumerate(sorted_idx_origin)}
+            temp.sort(key=lambda e: (idx_dict.get(e, len(sorted_idx_origin)), e))
+            # temp.sort(key=lambda e: (list(sorted_idx_origin).index(e),e) if e in list(sorted_idx_origin)  else (len(list(sorted_idx_origin)),e))
             sorted_idx = torch.tensor(temp,device=device)
             filetr_index_group_temp = copy.deepcopy(list(sorted_idx))
             
@@ -83,7 +92,6 @@ class Kmean_base:
             for left_index in filetr_index_group_temp:
                 pruning_left_index_group[counter].append(left_index)
         # first one is the least important weight and the last one is the most important weight
-
         while (len(pruning_index_group) < remove_filter):
             pruning_amount = len(pruning_index_group)
             for left_index in pruning_left_index_group:
@@ -94,5 +102,4 @@ class Kmean_base:
                 pruning_index_group.append(left_index.pop(-1))
             if (pruning_amount >= len(pruning_index_group)):
                 raise ValueError('infinity loop')
-
         return torch.tensor(pruning_index_group).to(device)

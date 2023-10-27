@@ -51,13 +51,12 @@ class pruning_engine(pruning_engine_base):
             self.K_Taylor_pruning = K_Taylor(
                 list_k=kwargs["list_k"],
                 pruning_ratio=self.pruning_ratio,
-                taylor_pruning=taylor_pruning.Taylor_pruning,
                 tool_net=kwargs["tool_net"],
                 total_layer=kwargs["total_layer"], 
                 taylor_loader=kwargs["taylor_loader"],
                 total_sample_size=kwargs["total_sample_size"], 
                 hook_function=kwargs["hook_function"],
-                layer_store_private_variable=kwargs["layer_store_grad_featuremap"])
+                layer_store_grad_featuremap=kwargs["layer_store_private_variable"])
             self.K_Taylor_pruning.store_k_in_layer(kwargs["layer_store_private_variable"])
             self.pruning_criterion = self.K_Taylor_pruning.Kmean_Taylor
 

@@ -10,7 +10,7 @@ class K_Taylor(Kmean_base,Taylor):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.list_k = list_k
         self.pruning_ratio = pruning_ratio
-        Taylor.__init__(tool_net,taylor_loader,total_layer,total_sample_size,hook_function)
+        Taylor.__init__(K_Taylor,tool_net,taylor_loader,total_layer,total_sample_size,hook_function)
         self.clear_mean_gradient_feature_map()
         self.Taylor_add_gradient()
         self.store_grad_layer(layer_store_grad_featuremap)

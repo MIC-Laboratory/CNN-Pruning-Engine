@@ -18,7 +18,7 @@ from torchvision.models import resnet101, ResNet101_Weights
 from tqdm import tqdm
 from utils import frozen_layer,deFrozen_layer,compare_models,seed_worker
 from thop import profile,clever_format
-
+from concurrent.futures import ThreadPoolExecutor,as_completed
 sys.path.append(os.path.join(os.getcwd()))
 from Weapon.WarmUpLR import WarmUpLR
 from Models.Resnet import ResNet101
@@ -113,22 +113,22 @@ class testcase_base:
         if  training_config["dataset"] == "Cifar10":
             self.train_set = torchvision.datasets.CIFAR10(dataset_path,train=True,transform=train_transform,download=True)
             self.test_set = torchvision.datasets.CIFAR10(dataset_path,train=False,transform=test_transform,download=True)
-            self.taylor_set = taylor_cifar10(dataset_path,train=True,transform=train_transform,download=True,taylor_number=100)
+            self.taylor_set = taylor_cifar10(dataset_path,train=True,transform=train_transform,download=True,taylor_number=5)
         elif  training_config["dataset"] == "Cifar100":
             self.train_set = torchvision.datasets.CIFAR100(dataset_path,train=True,transform=train_transform,download=True)
             self.test_set = torchvision.datasets.CIFAR100(dataset_path,train=False,transform=test_transform,download=True)
-            self.taylor_set = taylor_cifar100(dataset_path,train=True,transform=train_transform,download=True,taylor_number=100)
+            self.taylor_set = taylor_cifar100(dataset_path,train=True,transform=train_transform,download=True,taylor_number=5)
         elif  training_config["dataset"] == "Imagenet":
             self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
             self.test_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"val"),transform=test_transform)
-            self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=100)
-        if pruning_config["Pruning"]["K_calculation"][0] and training_config["dataset"] == "Imagenet":
-
-            self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
-            self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=10)
-            self.test_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=10)
-        else:
-            self.test_set = self.taylor_set
+            self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=5)
+        if pruning_config["Pruning"]["K_calculation"][0]:
+            if training_config["dataset"] == "Imagenet":
+                self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
+                self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=5)
+                self.test_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=5)
+            else:
+                self.test_set = self.taylor_set
         self.classes = len(self.train_set.classes)
         g = torch.Generator()
         g.manual_seed(seed)
@@ -142,7 +142,7 @@ class testcase_base:
         print("==> Preparing K")
         if  training_config["model"] == "ResNet101":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
-                self.list_k = [9, 25, 20, 59, 40, 5, 58, 56, 24, 92, 116, 117, 57, 70, 116, 81, 64, 4, 32, 50, 108, 118, 88, 44, 60, 39, 114, 70, 112, 58, 12, 38, 205]
+                self.list_k = [25, 12, 5, 16, 11, 26, 1, 24, 42, 7, 84, 17, 104, 18, 6, 31, 11, 114, 58, 23, 6, 94, 34, 76, 78, 28, 1, 39, 58, 25, 216, 143, 200]
             else:
                 raise NotImplementedError
             
@@ -161,8 +161,8 @@ class testcase_base:
         elif  training_config["model"] == "WideResNet":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
                 self.list_k = [1 for _ in range(12)]
-            else:
-                self.list_k = [1 for _ in range(12)]
+            elif pruning_config["Pruning"]["K_calculation"][1] == "Cifar100_K":
+                self.list_k = [28, 31, 24, 88, 16, 221, 103, 102, 528, 474, 204, 348]
             
         # Netword preparation
         print("==> Preparing models")
@@ -433,27 +433,39 @@ class testcase_base:
         pruning_ratio_list_reference = deepcopy(self.pruning_ratio_list)
         vgg_testcase_net_reference = deepcopy(self.net)
         reference__k = [1 for _ in range(len(self.list_k))]
+        
+        
+        self.pruning_ratio_list = [0.1 for _ in range(len(self.pruning_ratio_list))]
         print("==> Start to search for k:")
-        for layer_idx in range(len(pruning_ratio_list_reference)):
+        for layer_idx in range(13,len(pruning_ratio_list_reference)):
             self.pruning_ratio_list = deepcopy(pruning_ratio_list_reference)
             self.writer = SummaryWriter(log_dir=self.log_path+f"/K_Selection/layer{layer_idx}")
             accuracy_list = []
             mac_list = []
             self.list_k = reference__k
-            self.pruning_ratio_list = [0 for _ in range(len(pruning_ratio_list_reference))]
-            self.pruning_ratio_list[layer_idx] = 0.1
+            self.pruning_ratio_list = [0.1 for _ in range(len(pruning_ratio_list_reference))]
+            
             network_layer_reference = self.get_layer_store(self.net)
-            for k in range(1,network_layer_reference[layer_idx].weight.shape[0]//2):
+            if layer_idx == 13:
+                start_k = 37
+            else:
+                start_k = 1
+            for k in range(start_k,network_layer_reference[layer_idx].weight.shape[0]//2):
+                
                 self.net = deepcopy(vgg_testcase_net_reference)
                 network_layer_reference = self.get_layer_store(self.net)
                 
                 network_layer_reference[layer_idx].k_value = k
                 print(f"k: {k}, layer: {layer_idx}")
+                self.pruning()
+                    
+                
+                testing_criterion = nn.CrossEntropyLoss()
+                
+                loss,accuracy = self.validation(criterion=testing_criterion,save=False)
 
                 
-                self.pruning()
-                testing_criterion = nn.CrossEntropyLoss()
-                loss,accuracy = self.validation(criterion=testing_criterion,save=False)
+                
                 print("After pruning:",self.OpCounter())
                 _,_,mac,param = self.OpCounter()
                 self.writer.add_scalar('Test/ACC', accuracy, k)
@@ -461,10 +473,10 @@ class testcase_base:
                 
                 
             
-            # with open(vgg_testcase.log_path+"pruning_ratio.txt","a") as f:
-            #     f.write(f"\n===============>Layer{layer_idx} Pruning Ratio==================>"+str(calculate_pruning_ratio(accuracy_list,mac_list,13)))
+            # # with open(vgg_testcase.log_path+"pruning_ratio.txt","a") as f:
+            # #     f.write(f"\n===============>Layer{layer_idx} Pruning Ratio==================>"+str(calculate_pruning_ratio(accuracy_list,mac_list,13)))
             self.writer.close()
-        
+            
         
 
 
