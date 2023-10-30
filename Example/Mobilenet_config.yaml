@@ -7,13 +7,13 @@ Functionality_pruning_experiment:
         
     Pruning:
         Pruning_method:
-            K-L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            Taylor #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
             # K-Distance
         Pruning_ratio:
-            [0,0,0,0,0,0,0,0,
+            [0,0,0,0,0,0,0,0,0,0,
              0,0,0,0,0,0,0   
             ]
         Pruning_mode:
@@ -42,5 +42,5 @@ Training_seting:
         # Cifar100
         # Imagenet
     dataset_path: /home/zhenyulin/Training_data
-    experiment_data_path: Experiment/Mobilenet_Cifar100_origin_k_sort
+    experiment_data_path: Experiment/Mobilenet_Cifar100
     weight_path: Weights/

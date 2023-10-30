@@ -43,18 +43,8 @@ class Mobilenet_testcase_cifar(testcase_base):
             remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
             layers[layer].bn2 = self.pruner.remove_Bn(remove_filter_idx=remove_filter_idx)
 
-            self.pruner.set_layer(layers[layer].conv1)
-            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
-            layers[layer].conv1 = self.pruner.remove_filter_by_index(remove_filter_idx)
-
-            self.pruner.set_layer(layers[layer].bn1)
-            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
-            layers[layer].bn1 = self.pruner.remove_Bn(remove_filter_idx=remove_filter_idx)
             
-            self.pruner.set_layer(layers[layer].conv3)
-            remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
-            layers[layer].conv3 = self.pruner.remove_kernel_by_index(remove_filter_idx)
-        pruning_ratio_idx += 1
+            pruning_ratio_idx += 1
 
     
     def hook_function(self,tool_net,forward_hook,backward_hook):

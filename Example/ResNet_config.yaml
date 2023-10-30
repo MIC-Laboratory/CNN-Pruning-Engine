@@ -1,13 +1,13 @@
 # This is retrain config
 Functionality_pruning_experiment:
     Model:
-        Pretrained_weight_path: Weights/Cifar10/ResNet101/Model@ResNet101_ACC@96.48.pt
-        Pretrained_teacher_weight_path: Weights/Cifar10/ResNet101/Model@ResNet101_ACC@96.48.pt
+        Pretrained_weight_path: Weights/Cifar100/ResNet101/Model@ResNet101_ACC@79.89.pt
+        Pretrained_teacher_weight_path: Weights/Cifar100/ResNet101/Model@ResNet101_ACC@79.89.pt
             
         
     Pruning:
         Pruning_method:
-            Taylor #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
@@ -40,9 +40,9 @@ Training_seting:
     weight_decay: 5.e-4
     warmup_epoch: 10
     dataset: 
-        Cifar10 #Options Cifar10, Cifar100, Imagenet
+        Cifar100 #Options Cifar10, Cifar100, Imagenet
         # Cifar100
         # Imagenet
     dataset_path: /home/zhenyulin/Training_data/
-    experiment_data_path: Experiment/ResNet101_Cifar10_zero_weight
+    experiment_data_path: Experiment/ResNet101_Cifar100
     weight_path: Weights/

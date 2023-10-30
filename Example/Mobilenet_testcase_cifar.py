@@ -32,7 +32,9 @@ class Mobilenet_testcase_cifar(testcase_base):
     
     def pruning(self):
         layers = self.net.layers
+        pruning_ratio_idx = 0
         for layer in range(len(layers)):
+            self.pruner.set_pruning_ratio(self.pruning_ratio_list[pruning_ratio_idx])
             self.pruner.set_layer(layers[layer].conv2,main_layer=True)
             remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
             layers[layer].conv2 = self.pruner.remove_filter_by_index(remove_filter_idx,group=True)
@@ -52,7 +54,7 @@ class Mobilenet_testcase_cifar(testcase_base):
             self.pruner.set_layer(layers[layer].conv3)
             remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
             layers[layer].conv3 = self.pruner.remove_kernel_by_index(remove_filter_idx)
-        
+            pruning_ratio_idx += 1
 
     
     def hook_function(self,tool_net,forward_hook,backward_hook):
@@ -61,7 +63,9 @@ class Mobilenet_testcase_cifar(testcase_base):
         for layer in range(len(layers)):
             
             layers[layer].conv2.register_forward_hook(forward_hook)
-            layers[layer].conv2.register_forward_hook(backward_hook)
+            layers[layer].bn2.register_forward_hook(forward_hook)
+            layers[layer].conv2.register_full_backward_hook(backward_hook)
+            layers[layer].bn2.register_full_backward_hook(backward_hook)
             
 
         return copy_tool_net
@@ -70,6 +74,7 @@ class Mobilenet_testcase_cifar(testcase_base):
         layers = net.layers
         for layer in range(len(layers)):
             result.append(layers[layer].conv2)
+            result.append(layers[layer].bn2)
             
             
                 
@@ -77,6 +82,6 @@ class Mobilenet_testcase_cifar(testcase_base):
 config_file_path = "Example/Mobilenet_config.yaml"
 
 mb_testcase = Mobilenet_testcase_cifar(config_file_path)
-print(mb_testcase.net)
-mb_testcase.pruning()
-mb_testcase.retraining()
+# testcase.config_pruning()
+# testcase.layerwise_pruning()
+mb_testcase.fullayer_pruning()

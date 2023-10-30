@@ -50,12 +50,12 @@ class VGG_testcase_cifar(testcase_base):
                     self.pruner.set_layer(layers[layer],main_layer=True)
                     remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
                     layers[layer] = self.pruner.remove_conv_filter_kernel()
-            
+                pruning_ratio_idx+=1
             elif isinstance(layers[layer], BatchNorm2d):
                 self.pruner.set_layer(layers[layer])
                 remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
                 layers[layer] = self.pruner.remove_Bn(remove_filter_idx)
-        pruning_ratio_idx+=1
+        
     def hook_function(self,tool_net,forward_hook,backward_hook):
         copy_tool_net = deepcopy(tool_net)
         layers = copy_tool_net.features

@@ -45,14 +45,9 @@ class ResNet_testcase_cifar(testcase_base):
                 self.pruner.set_layer(layers[layer].conv2,main_layer=True)
                 remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
                 layers[layer].conv2 = self.pruner.remove_filter_by_index(remove_filter_idx)
-                
-
-                
-
-                self.pruner.set_layer(layers[layer].conv1)
+                self.pruner.set_layer(layers[layer].bn2)
                 remove_filter_idx = self.pruner.get_remove_filter_idx()["current_layer"]
-                layers[layer].conv1 = self.pruner.remove_filter_by_index(remove_filter_idx=remove_filter_idx)
-
+                layers[layer].bn2 = self.pruner.remove_Bn(remove_filter_idx=remove_filter_idx)
 
                 
 
@@ -71,7 +66,9 @@ class ResNet_testcase_cifar(testcase_base):
         for layers in layersx:
             for layer in range(len(layers)):
                 layers[layer].conv2.register_forward_hook(forward_hook)
-                layers[layer].conv2.register_forward_hook(backward_hook)
+                layers[layer].bn2.register_forward_hook(forward_hook)
+                layers[layer].conv2.register_full_backward_hook(backward_hook)
+                layers[layer].bn2.register_full_backward_hook(backward_hook)
 
         return copy_tool_net
     def get_layer_store(self,net):
@@ -85,6 +82,7 @@ class ResNet_testcase_cifar(testcase_base):
         for layers in layersx:
             for layer in range(len(layers)):
                 result.append(layers[layer].conv2)
+                result.append(layers[layer].bn2)
                 
         return result
 config_file_path = "Example/ResNet_config.yaml"

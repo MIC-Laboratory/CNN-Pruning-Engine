@@ -67,7 +67,10 @@ class VGG_testcase_cifar(testcase_base):
         for layer in range(len(layers)):
             if isinstance(layers[layer],Conv2d):
                 layers[layer].register_forward_hook(forward_hook)
-                layers[layer].register_forward_hook(backward_hook)
+                layers[layer].register_full_backward_hook(backward_hook)
+            if isinstance(layers[layer],BatchNorm2d):
+                layers[layer].register_forward_hook(forward_hook)
+                layers[layer].register_full_backward_hook(backward_hook)
             
             
         return copy_tool_net
@@ -77,7 +80,8 @@ class VGG_testcase_cifar(testcase_base):
         for layer in range(len(layers)):
             if isinstance(layers[layer],Conv2d):
                 result.append(layers[layer])
-
+            if isinstance(layers[layer],BatchNorm2d):
+                result.append(layers[layer])
         return result
 
 

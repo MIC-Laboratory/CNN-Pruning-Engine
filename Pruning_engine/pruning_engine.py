@@ -59,7 +59,7 @@ class pruning_engine(pruning_engine_base):
                 layer_store_grad_featuremap=kwargs["layer_store_private_variable"])
             self.K_Taylor_pruning.store_k_in_layer(kwargs["layer_store_private_variable"])
             self.pruning_criterion = self.K_Taylor_pruning.Kmean_Taylor
-            
+
         elif (self.pruning_method == "K-Distance"):
             self.K_Distance_Pruning = K_Distance(list_k=kwargs["list_k"],pruning_ratio=self.pruning_ratio)
             self.K_Distance_Pruning.store_k_in_layer(kwargs["layer_store_private_variable"])
@@ -122,6 +122,8 @@ class pruning_engine(pruning_engine_base):
         self.pruning_ratio = 1-pruning_ratio
         if "K_L1norm_pruning" in self.__dict__:
             self.K_L1norm_pruning.set_pruning_ratio(1-pruning_ratio)
+        if "K_Distance_Pruning" in self.__dict__:
+            self.K_Distance_Pruning.set_pruning_ratio(1-pruning_ratio)
         if "K_Taylor_pruning" in self.__dict__:
             self.K_Taylor_pruning.set_pruning_ratio(1-pruning_ratio)
 
