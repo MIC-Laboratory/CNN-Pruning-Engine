@@ -113,20 +113,20 @@ class testcase_base:
         if  training_config["dataset"] == "Cifar10":
             self.train_set = torchvision.datasets.CIFAR10(dataset_path,train=True,transform=train_transform,download=True)
             self.test_set = torchvision.datasets.CIFAR10(dataset_path,train=False,transform=test_transform,download=True)
-            self.taylor_set = taylor_cifar10(dataset_path,train=True,transform=train_transform,download=True,taylor_number=5)
+            self.taylor_set = taylor_cifar10(dataset_path,train=True,transform=train_transform,download=True,taylor_number=100000)
         elif  training_config["dataset"] == "Cifar100":
             self.train_set = torchvision.datasets.CIFAR100(dataset_path,train=True,transform=train_transform,download=True)
             self.test_set = torchvision.datasets.CIFAR100(dataset_path,train=False,transform=test_transform,download=True)
-            self.taylor_set = taylor_cifar100(dataset_path,train=True,transform=train_transform,download=True,taylor_number=5)
+            self.taylor_set = taylor_cifar100(dataset_path,train=True,transform=train_transform,download=True,taylor_number=100000)
         elif  training_config["dataset"] == "Imagenet":
             self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
             self.test_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"val"),transform=test_transform)
-            self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=5)
+            self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=100000)
         if pruning_config["Pruning"]["K_calculation"][0]:
             if training_config["dataset"] == "Imagenet":
                 self.train_set = torchvision.datasets.ImageFolder(os.path.join(dataset_path,"train"),transform=train_transform)
-                self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=5)
-                self.test_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=5)
+                self.taylor_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=100)
+                self.test_set = taylor_imagenet(os.path.join(dataset_path,"train"),transform=train_transform,data_limit=10)
             else:
                 self.test_set = self.taylor_set
         self.classes = len(self.train_set.classes)
@@ -437,7 +437,7 @@ class testcase_base:
         
         self.pruning_ratio_list = [0.1 for _ in range(len(self.pruning_ratio_list))]
         print("==> Start to search for k:")
-        for layer_idx in range(13,len(pruning_ratio_list_reference)):
+        for layer_idx in range(len(pruning_ratio_list_reference)):
             self.pruning_ratio_list = deepcopy(pruning_ratio_list_reference)
             self.writer = SummaryWriter(log_dir=self.log_path+f"/K_Selection/layer{layer_idx}")
             accuracy_list = []
@@ -446,11 +446,7 @@ class testcase_base:
             self.pruning_ratio_list = [0.1 for _ in range(len(pruning_ratio_list_reference))]
             
             network_layer_reference = self.get_layer_store(self.net)
-            if layer_idx == 13:
-                start_k = 37
-            else:
-                start_k = 1
-            for k in range(start_k,network_layer_reference[layer_idx].weight.shape[0]//2):
+            for k in range(1,network_layer_reference[layer_idx].weight.shape[0]//2):
                 
                 self.net = deepcopy(vgg_testcase_net_reference)
                 network_layer_reference = self.get_layer_store(self.net)

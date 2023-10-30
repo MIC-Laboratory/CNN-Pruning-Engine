@@ -5,7 +5,7 @@ from .Pruning_criterion.L1norm.L1norm import L1norm
 from .Pruning_criterion.Taylor.Taylor import Taylor
 from .Pruning_criterion.KMean.K_L1norm import K_L1norm
 from .Pruning_criterion.KMean.K_Taylor import K_Taylor
-
+from .Pruning_criterion.KMean.K_Distance import K_Distance
 
 class pruning_engine(pruning_engine_base):
     def __init__(self,pruning_method,pruning_ratio = 0,individual = False,**kwargs):
@@ -59,7 +59,11 @@ class pruning_engine(pruning_engine_base):
                 layer_store_grad_featuremap=kwargs["layer_store_private_variable"])
             self.K_Taylor_pruning.store_k_in_layer(kwargs["layer_store_private_variable"])
             self.pruning_criterion = self.K_Taylor_pruning.Kmean_Taylor
-
+            
+        elif (self.pruning_method == "K-Distance"):
+            self.K_Distance_Pruning = K_Distance(list_k=kwargs["list_k"],pruning_ratio=self.pruning_ratio)
+            self.K_Distance_Pruning.store_k_in_layer(kwargs["layer_store_private_variable"])
+            self.pruning_criterion = self.K_Distance_Pruning.Kmean_Distance
         self.remove_filter_idx_history = {
             "previous_layer":None,
             "current_layer":None
@@ -82,27 +86,25 @@ class pruning_engine(pruning_engine_base):
         """
 
         
-        try:
-            self.copy_layer = deepcopy(layer)
-            
-            if main_layer:
-                if self.individual:
-                    self.remove_filter_idx_history = {
-                        "previous_layer":None,
-                        "current_layer":None
-                    }
-                self.remove_filter_idx_history["previous_layer"] = self.remove_filter_idx_history["current_layer"]
-                self.remove_filter_idx_history["current_layer"] = None
-                remove_filter_idx = self.pruning_criterion(self.copy_layer)
-                number_pruning_filter = int(len(remove_filter_idx) * self.pruning_ratio)
-                self.remove_filter_idx = remove_filter_idx[number_pruning_filter:]
-                if (self.remove_filter_idx_history["previous_layer"] is None):
-                    self.remove_filter_idx_history["previous_layer"] = self.remove_filter_idx 
-                self.remove_filter_idx_history["current_layer"] = self.remove_filter_idx
-            return True
-        except Exception as e:
-            print("Error:",e)
-            return False
+        
+        self.copy_layer = deepcopy(layer)
+        
+        if main_layer:
+            if self.individual:
+                self.remove_filter_idx_history = {
+                    "previous_layer":None,
+                    "current_layer":None
+                }
+            self.remove_filter_idx_history["previous_layer"] = self.remove_filter_idx_history["current_layer"]
+            self.remove_filter_idx_history["current_layer"] = None
+            remove_filter_idx = self.pruning_criterion(self.copy_layer)
+            number_pruning_filter = int(len(remove_filter_idx) * self.pruning_ratio)
+            self.remove_filter_idx = remove_filter_idx[number_pruning_filter:]
+            if (self.remove_filter_idx_history["previous_layer"] is None):
+                self.remove_filter_idx_history["previous_layer"] = self.remove_filter_idx 
+            self.remove_filter_idx_history["current_layer"] = self.remove_filter_idx
+        return True
+    
     
     def set_pruning_ratio(self,pruning_ratio):
         """

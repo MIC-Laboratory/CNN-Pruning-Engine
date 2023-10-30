@@ -4,6 +4,8 @@ import sys
 
 from .Kmean_base import Kmean_base
 from ..L1norm.L1norm import L1norm
+from sklearn.decomposition import PCA
+
 class K_L1norm(Kmean_base,L1norm):
     def __init__(self,list_k,pruning_ratio):
         """
@@ -18,9 +20,8 @@ class K_L1norm(Kmean_base,L1norm):
         Logic:
             Initialize K_L1norm object.
         """
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.list_k = list_k
-        self.pruning_ratio = pruning_ratio
+        Kmean_base.__init__(K_L1norm,list_k,pruning_ratio)
+
     def Kmean_L1norm(self,layer):
         """
         Apply K-L1norm pruning to the given layer.
@@ -37,9 +38,11 @@ class K_L1norm(Kmean_base,L1norm):
             3. Return the sorted indices, representing the most important filters based on K-L1norm.
         """
         weight = layer.weight.data.clone()
+        weight = weight.reshape(weight.shape[0],-1).cpu().detach().numpy()
+        pca = PCA(n_components=0.8).fit(weight)
+        weight = pca.fit_transform(weight)
         sort_index = self.L1norm_pruning(layer)
         k = layer.k_value
-
         output_channel = int(weight.shape[0] * self.pruning_ratio)
         
         pruning_index =  self.Kmean(weight,sort_index,k,output_channel)
@@ -57,9 +60,10 @@ class K_L1norm(Kmean_base,L1norm):
 
         return torch.cat((keep_index,pruning_index))
 
-    def set_pruning_ratio(self,pruning_ratio):
-        self.pruning_ratio = pruning_ratio
+    # def set_pruning_ratio(self,pruning_ratio):
+    #     self.pruning_ratio = pruning_ratio
 
-    def store_k_in_layer(self,layers):
-        for layer in range(len(layers)):
-            layers[layer].__dict__["k_value"] = self.list_k[layer]
+    # def store_k_in_layer(self,layers):
+    #     for layer in range(len(layers)//2):
+    #         layers[layer*2].__dict__["k_value"] = self.list_k[layer]
+    #         layers[layer*2].__dict__["bn"] = layers[(layer*2)+1].weight.data.clone()

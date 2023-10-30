@@ -8,6 +8,11 @@ from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics import silhouette_score
 from tqdm import tqdm
 class Kmean_base:
+    def __init__(self,list_k,pruning_ratio):
+        self.list_k = list_k
+        self.pruning_ratio = pruning_ratio
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        
     def Kmean(self,weight,sort_index,k,output_channel):
         """
         Apply K-means clustering to perform filter pruning based on similarity in weight vectors.
@@ -42,15 +47,14 @@ class Kmean_base:
         import time
         start = time.time()
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        num_filter = weight.data.size()[0]
+        num_filter = weight.shape[0]
         remove_filter = num_filter - output_channel
         if k == 1:
             return sort_index[output_channel:]
             
         
-        m_weight_vector = weight.reshape(num_filter, -1).cpu()
-        pca = PCA(n_components=0.8).fit(m_weight_vector)
-        m_weight_vector = pca.fit_transform(m_weight_vector)
+        m_weight_vector = weight.reshape(num_filter, -1)
+        
         
         n_clusters = k
 
@@ -79,9 +83,7 @@ class Kmean_base:
         sorted_idx_origin = copy.deepcopy(sort_index)
         for counter, filter_index_group in enumerate(group, 0):
             temp = copy.deepcopy(filter_index_group)
-            idx_dict = {e: i for i, e in enumerate(sorted_idx_origin)}
-            temp.sort(key=lambda e: (idx_dict.get(e, len(sorted_idx_origin)), e))
-            # temp.sort(key=lambda e: (list(sorted_idx_origin).index(e),e) if e in list(sorted_idx_origin)  else (len(list(sorted_idx_origin)),e))
+            temp.sort(key=lambda e: (list(sorted_idx_origin).index(e),e) if e in list(sorted_idx_origin)  else (len(list(sorted_idx_origin)),e))
             sorted_idx = torch.tensor(temp,device=device)
             filetr_index_group_temp = copy.deepcopy(list(sorted_idx))
             
@@ -103,3 +105,11 @@ class Kmean_base:
             if (pruning_amount >= len(pruning_index_group)):
                 raise ValueError('infinity loop')
         return torch.tensor(pruning_index_group).to(device)
+    
+    def set_pruning_ratio(self,pruning_ratio):
+        self.pruning_ratio = pruning_ratio
+
+    def store_k_in_layer(self,layers):
+        for layer in range(len(layers)//2):
+            layers[layer*2].__dict__["k_value"] = self.list_k[layer]
+            layers[layer*2].__dict__["bn"] = layers[(layer*2)+1].weight.data.clone()

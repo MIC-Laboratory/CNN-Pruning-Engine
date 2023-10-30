@@ -7,20 +7,18 @@ from ..Taylor.Taylor import Taylor
 
 class K_Taylor(Kmean_base,Taylor):
     def __init__(self,list_k,pruning_ratio,tool_net,taylor_loader,total_layer,total_sample_size,hook_function,layer_store_grad_featuremap):
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.list_k = list_k
-        self.pruning_ratio = pruning_ratio
+
         Taylor.__init__(K_Taylor,tool_net,taylor_loader,total_layer,total_sample_size,hook_function)
+        Kmean_base.__init__(K_Taylor,list_k,pruning_ratio)
         self.clear_mean_gradient_feature_map()
         self.Taylor_add_gradient()
         self.store_grad_layer(layer_store_grad_featuremap)
     def Kmean_Taylor(self,layer):
-        weight = layer.weight.data.clone()
         sort_index = self.Taylor_pruning(layer)
         k = layer.k_value
-
+        weight = layer.weight.data.clone()
         output_channel = int(weight.shape[0] * self.pruning_ratio)
-        
+        weight = weight.reshape(weight.shape[0],-1).cpu().detach().numpy()
         
         pruning_index =  self.Kmean(weight,sort_index,k,output_channel)
         """
@@ -37,9 +35,4 @@ class K_Taylor(Kmean_base,Taylor):
 
         return torch.cat((keep_index,pruning_index))
 
-    def set_pruning_ratio(self,pruning_ratio):
-        self.pruning_ratio = pruning_ratio
 
-    def store_k_in_layer(self,layers):
-        for layer in range(len(layers)):
-            layers[layer].__dict__["k_value"] = self.list_k[layer]
