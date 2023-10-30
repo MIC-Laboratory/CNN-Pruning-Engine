@@ -24,10 +24,9 @@ class K_Distance(Kmean_base):
         num_filter = layer.weight.data.size()[0]
         m_weight_vector = layer.weight.reshape(num_filter, -1).cpu().detach().numpy()
         bn = layer.bn.cpu().detach().numpy().reshape(-1,1)
+        m_weight_vector = m_weight_vector+bn
         pca = PCA(n_components=0.8).fit(m_weight_vector)
         m_weight_vector = pca.fit_transform(m_weight_vector)
-        m_weight_vector = m_weight_vector+bn
-        
         kmeans = KMeans(n_clusters=n_clusters, random_state=0,n_init='auto').fit(m_weight_vector)
         distance_set = kmeans.fit_transform(m_weight_vector)
 
