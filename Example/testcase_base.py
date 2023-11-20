@@ -20,14 +20,17 @@ from utils import frozen_layer,deFrozen_layer,compare_models,seed_worker
 from thop import profile,clever_format
 from concurrent.futures import ThreadPoolExecutor,as_completed
 sys.path.append(os.path.join(os.getcwd()))
+from ofa.imagenet_classification.elastic_nn.networks import OFAMobileNetV3,OFAResNets
+
+sys.path.append(os.path.join(os.getcwd(),"CNN_Pruning_Engine"))
 from Weapon.WarmUpLR import WarmUpLR
 from Models.Resnet import ResNet101
 from Models.Mobilenetv2 import MobileNetV2
 from Models.Vgg import VGG
-from Models.WideResNet import Wide_ResNet
 from Pruning_engine.pruning_engine import pruning_engine
 from Taylor_set_cifar import taylor_cifar10,taylor_cifar100
 from Taylor_set_imagenet import taylor_imagenet
+
 class testcase_base:
 
     def __init__(self,config_file_path,**kwargs):
@@ -145,6 +148,7 @@ class testcase_base:
                 self.list_k = [25, 12, 5, 16, 11, 26, 1, 24, 42, 7, 84, 17, 104, 18, 6, 31, 11, 114, 58, 23, 6, 94, 34, 76, 78, 28, 1, 39, 58, 25, 216, 143, 200]
             else:
                 raise NotImplementedError
+        
             
         elif training_config["model"] == "Mobilenetv2":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
@@ -174,7 +178,7 @@ class testcase_base:
             else:
                 self.net = ResNet101(num_classes=self.classes)
                 self.teacher_net = ResNet101(num_classes=self.classes)
-            
+        
         elif  training_config["model"] == "Mobilenetv2":
             self.net = MobileNetV2(num_classes=self.classes)
             self.teacher_net = MobileNetV2(num_classes=self.classes)

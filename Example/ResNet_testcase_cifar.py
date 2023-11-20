@@ -97,7 +97,7 @@ class ResNet_testcase_cifar(testcase_base):
                 result.append(layers[layer].bn2)
                 
         return result
-config_file_path = "Example/ResNet_config.yaml"
+config_file_path = "CNN_Pruning_Engine/Example/ResNet_config.yaml"
 
 testcase = ResNet_testcase_cifar(config_file_path)
 # testcase.config_pruning()
