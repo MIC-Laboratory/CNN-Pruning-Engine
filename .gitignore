@@ -4,3 +4,6 @@ Experiment/
 data/
 */WideResNet*
 .vscode
+force-Kmean.ipynb
+data/
+force-Kmean-MLP.ipynb

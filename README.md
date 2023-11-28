@@ -9,13 +9,18 @@ This project is a pruning engine for neural network models. It provides a set of
 <i>Figure 1: Experiment Result</i>
 </p>
 
+### Pretrain Weight for reproduce the experiment
+
+[Cifar1000](https://drive.google.com/drive/folders/1RrpnG1uB4iSmO42wDwqBtjmiDbXYTXSg?usp=sharing)
+
+[Cifar10](https://drive.google.com/drive/folders/1U8026-eHAmo5xbqYqXAvMaGjIf9aH9ql?usp=sharing)
 ## Installation
 To install the project, follow these steps:
 
 
 Clone the repository: 
 ```bash
-git clone https://github.com/example/project.git
+git clone https://github.com/MIC-Laboratory/CNN-Pruning-Engine.git
 ```
 Install the dependencies: 
 ```bash

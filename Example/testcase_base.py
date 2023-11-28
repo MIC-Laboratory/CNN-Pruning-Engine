@@ -377,7 +377,7 @@ class testcase_base:
                 self.writer.add_scalar('Test/ACC', accuracy, pruning_percentage)
                 
                 accuracy_list.append(accuracy)
-                mac_list.append(float(vgg_testcase.OpCounter()[0].rstrip('M')))
+                mac_list.append(float(self.OpCounter()[0].rstrip('M')))
             
             # with open(vgg_testcase.log_path+"pruning_ratio.txt","a") as f:
             #     f.write(f"\n===============>Layer{layer_idx} Pruning Ratio==================>"+str(calculate_pruning_ratio(accuracy_list,mac_list,13)))

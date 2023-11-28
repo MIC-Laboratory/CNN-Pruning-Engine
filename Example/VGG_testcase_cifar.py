@@ -90,5 +90,5 @@ class VGG_testcase_cifar(testcase_base):
 
 testcase = VGG_testcase_cifar("Example/VGG_config.yaml")
 # testcase.config_pruning()
-# testcase.layerwise_pruning()
-testcase.fullayer_pruning()
+testcase.layerwise_pruning()
+# testcase.fullayer_pruning()

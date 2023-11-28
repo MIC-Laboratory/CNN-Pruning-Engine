@@ -7,7 +7,7 @@ Functionality_pruning_experiment:
         
     Pruning:
         Pruning_method:
-            L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            K-Distance #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
@@ -44,5 +44,5 @@ Training_seting:
         # Cifar100
         # Imagenet
     dataset_path: /home/zhenyulin/Training_data/
-    experiment_data_path: Experiment/ResNet101_Cifar100
+    experiment_data_path: Experiment/ResNet101_Cifar100_new_distance
     weight_path: Weights/
