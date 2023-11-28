@@ -4,7 +4,8 @@ This project is a pruning engine for neural network models. It provides a set of
 
 ## Experiment Result
 <p align="center">
-<img src="Images/Experiment Result.png" alt="Experiment Result" width=70%>
+<img src="Images/PruningResule1.png" alt="Experiment Result" width=70%>
+<img src="Images/PruningResult2.png" alt="Experiment Result" width=70%>
 <br>
 <i>Figure 1: Experiment Result</i>
 </p>
