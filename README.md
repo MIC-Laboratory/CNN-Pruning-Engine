@@ -12,7 +12,7 @@ This project is a pruning engine for neural network models. It provides a set of
 
 ### Pretrain Weight for reproduce the experiment
 
-[Cifar1000](https://drive.google.com/drive/folders/1RrpnG1uB4iSmO42wDwqBtjmiDbXYTXSg?usp=sharing)
+[Cifar100](https://drive.google.com/drive/folders/1RrpnG1uB4iSmO42wDwqBtjmiDbXYTXSg?usp=sharing)
 
 [Cifar10](https://drive.google.com/drive/folders/1U8026-eHAmo5xbqYqXAvMaGjIf9aH9ql?usp=sharing)
 ## Installation
