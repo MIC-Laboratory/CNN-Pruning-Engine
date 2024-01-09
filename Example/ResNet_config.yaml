@@ -1,13 +1,13 @@
 # This is retrain config
 Functionality_pruning_experiment:
     Model:
-        Pretrained_weight_path: Weights/Cifar100/ResNet101/Model@ResNet101_ACC@79.89.pt
-        Pretrained_teacher_weight_path: Weights/Cifar100/ResNet101/Model@ResNet101_ACC@79.89.pt
+        Pretrained_weight_path: Weights/Cifar100/ResNet101/K-Opt@ResNet101_ACC@72.08.pt
+        Pretrained_teacher_weight_path: Weights/Cifar100/ResNet101/K-Opt@ResNet101_ACC@72.08.pt
             
         
     Pruning:
         Pruning_method:
-            K-Distance #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            K-Taylor #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
@@ -23,9 +23,10 @@ Functionality_pruning_experiment:
             # Layerwise
         K_calculation:
             [False,
-            Imagenet_K] #Options: Cifar10_K, Cifar100_K, Imagenet_K
+            Force_K] #Options: Cifar10_K, Cifar100_K, Imagenet_K
             # Cifar10_K
             # Cifar100_K
+            # Force_K
 
 
 Training_seting:
@@ -44,5 +45,5 @@ Training_seting:
         # Cifar100
         # Imagenet
     dataset_path: /home/zhenyulin/Training_data/
-    experiment_data_path: Experiment/ResNet101_Cifar100_new_distance
+    experiment_data_path: Experiment/ResNet101_Cifar100
     weight_path: Weights/

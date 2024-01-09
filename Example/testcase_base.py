@@ -143,12 +143,16 @@ class testcase_base:
         if  training_config["model"] == "ResNet101":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
                 self.list_k = [25, 12, 5, 16, 11, 26, 1, 24, 42, 7, 84, 17, 104, 18, 6, 31, 11, 114, 58, 23, 6, 94, 34, 76, 78, 28, 1, 39, 58, 25, 216, 143, 200]
+            elif pruning_config["Pruning"]["K_calculation"][1] == "Force_K":
+                self.list_k = [5, 5, 5, 8, 8, 8, 8, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 16, 16, 16]
             else:
                 raise NotImplementedError
             
         elif training_config["model"] == "Mobilenetv2":
             if pruning_config["Pruning"]["K_calculation"][1] == "Imagenet_K":
                 self.list_k = [1,16,48,2,34,57,4,36,79,42,2,270,5,2,80,431,185]
+            elif pruning_config["Pruning"]["K_calculation"][1] == "Force_K":
+                self.list_k = [4, 6, 8, 8, 9, 9, 9, 13, 13, 13, 13, 16, 16, 16, 21, 21, 21]
             else:
                 raise NotImplementedError
         elif  training_config["model"] == "VGG16":

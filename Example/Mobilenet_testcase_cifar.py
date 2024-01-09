@@ -83,5 +83,5 @@ config_file_path = "Example/Mobilenet_config.yaml"
 
 mb_testcase = Mobilenet_testcase_cifar(config_file_path)
 # testcase.config_pruning()
-mb_testcase.layerwise_pruning()
-# mb_testcase.fullayer_pruning()
+# mb_testcase.layerwise_pruning()
+mb_testcase.fullayer_pruning()
