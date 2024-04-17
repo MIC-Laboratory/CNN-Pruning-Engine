@@ -1,20 +1,20 @@
 # This is retrain config
 Functionality_pruning_experiment:
     Model:
-        Pretrained_weight_path: Weights/Cifar100/Mobilenetv2/K-Opt@Mobilenetv2_ACC@78.36.pt
-        Pretrained_teacher_weight_path: Weights/Cifar100/Mobilenetv2/K-Opt@Mobilenetv2_ACC@78.36.pt
+        Pretrained_weight_path: Weights/Cifar100/Mobilenetv2/Model@Mobilenetv2_ACC@79.32.pt
+        Pretrained_teacher_weight_path: Weights/Cifar100/Mobilenetv2/Model@Mobilenetv2_ACC@79.32.pt
             
         
     Pruning:
         Pruning_method:
-            L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
+            K-L1norm #Options: L1norm, Taylor, K-Taylor, K-L1norm, K-Distance
             # Taylor
             # K-Taylor
             # K-L1norm
             # L1norm
             # K-Distance
         Pruning_ratio:
-            [0,0,0,0,0,0,0,0,0,0,
+            [0.6,0,0,0,0,0,0,0,0,0,
              0,0,0,0,0,0,0   
             ]
         Pruning_mode:
@@ -22,7 +22,7 @@ Functionality_pruning_experiment:
             # Layerwise
         K_calculation:
             [False,
-            Force_K] #Options: Cifar10_K, Cifar100_K, Imagenet_K
+            Imagenet_K] #Options: Cifar10_K, Cifar100_K, Imagenet_K
             # Cifar10_K
             # Cifar100_K
             # Force_K
