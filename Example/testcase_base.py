@@ -393,7 +393,7 @@ class testcase_base:
 
         for pruning_percentage in range(20):
             for layer_idx in range(len(deepcopy(self.pruning_ratio_list))):
-                self.pruning_ratio_list[layer_idx] = round(pruning_percentage/20,1)
+                self.pruning_ratio_list[layer_idx] = round(pruning_percentage/20,2)
             self.net = deepcopy(vgg_testcase_net_reference)
             print("Before pruning:",self.OpCounter())
             testing_criterion = nn.CrossEntropyLoss()
